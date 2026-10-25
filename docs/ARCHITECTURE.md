@@ -1,0 +1,40 @@
+# 系統架構
+
+狀態：提案，尚未實作。2026-10-26。
+
+## 技術預設提案
+TypeScript + Next.js（App Router）作為單一 Web 應用與 server endpoints；PostgreSQL 儲存資料；Prisma 管理 schema/migrations；npm 與 lockfile；Vitest 作單元／整合測試。
+此選擇服務第一版快速建立，不是現有技術事實。BOOTSTRAP-001 選定當時相容的受支援版本，固定依賴並記錄 Node 版本，不在文件捏造版本號。
+登入供應商尚未選定；不自行設計密碼或 session 加密。
+
+## 邊界與資料流
+瀏覽器 → server endpoint → 身分驗證 → tenant/membership/role 授權 → tenant-scoped service → PostgreSQL。
+UI 隱藏按鈕不構成授權；所有可直接呼叫的 endpoint 都必須檢查。
+核心邏輯放在 server service，避免 UI、API 與背景工作各自複製授權邏輯。
+建議目錄：src/app、src/server/auth、src/server/tenancy、src/server/services、prisma、tests；以實作實際結構更新文件。
+
+## 租戶隔離
+共享資料庫、共享 schema，每筆租戶資料有 tenant_id。
+使用已驗證使用者與 membership 建立 server tenant context。URL/header 中 tenant ID 只是選擇器。
+以 tenant_id + resource_id 查詢並驗證角色；跨租戶外鍵需複合約束。
+資料存取封裝與兩租戶測試是初始控制。PostgreSQL RLS 是待 ADR 評估的額外控制；未實作與測試前不可宣稱已保護資料。
+若採 RLS，須處理連線池、交易範圍 context、migration/service role 繞過風險。
+
+## 健康檢查
+M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
+這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。
+
+## 環境與安全
+只使用本機開發及 CI 測試資料；.env.example 只含範例。
+資料庫帳密以環境變數設定，不提交真實秘密；正式 secrets manager 待部署選型。
+結構化日誌包含 correlation ID 與必要事件，不包含 token、密碼或業務敏感內容。
+正式部署、備份還原、限流、監控與事故處理另開 Issue。
+
+## 驗證策略
+M0 驗證健康檢查、工具鏈、DB migration、乾淨啟動與 CI。
+M1 使用兩租戶、owner/member/非成員測試授權矩陣。
+M2 對 CRUD 做完整跨租戶測試與端到端流程。
+任何外部整合採測試替身與明確介面，不在 CI 使用正式客戶服務。
+
+## 決策紀錄
+尚無正式 ADR。重大選型或偏離本提案時新增 docs/adr/NNNN-title.md，記錄背景、選項、決策與影響。
