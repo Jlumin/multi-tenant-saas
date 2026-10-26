@@ -7,13 +7,15 @@
 | M0 / BOOTSTRAP-001 | Web/TypeScript 骨架、健康檢查、本機 DB、migration、CI、開發文件 | 新環境可啟動，檢查與 CI 通過 | 本文件與 AGENTS 可在工作分支讀取 |
 | M1 / 待開 Issue | 登入、租戶、membership、角色與租戶 context | 兩租戶授權矩陣與資料完整性測試通過 | 選定登入供應商與租戶加入政策，M0 |
 | M2 / PROJECTS-001 #9 | Project CRUD、基本 UI、稽核與 E2E | PRD MVP 驗收逐項通過 | M1；Project 首個資源已確認 |
-| WMS 需求 / WMS-DISCOVERY-001 #11 | 詳細需求、流程、權限、庫存不變條件與分期提案 | 使用者確認位置、計量與過帳等規則 | Project 工程；需求草案不等於 WMS 實作 |
+| WMS 需求 / WMS-DISCOVERY-001 #11 | 詳細需求、流程、權限、庫存不變條件與分期提案 | 位置、整數計量與拆零需求已確認；過帳等規則仍待決定 | Project 工程；需求草案不等於完整 WMS |
+| WMS-001 #13 | 商品／包裝、倉庫／儲位主檔、換算試算、授權與 UI | PostgreSQL、API、整數換算與兩租戶隔離測試通過 | 已合併需求規格 #12；PR 待審 |
+| WMS-002 待拆 Issue | 庫存帳、入庫與出庫 | Member 過帳、審批、負庫存與單據狀態規則確認 | WMS-001 主檔 |
 | M3 / 待開 Issue | 部署、備份還原、監控、安全與產品試用 | 部署與復原演練、上線條件審查 | 部署供應商、資料政策、M2 |
 
-2026-10-26 進度：M0 PR #3、AUTH-001 PR #5、TENANCY-001 PR #7、PROJECTS-001 PR #10 均已提出 Draft。Project commit 96c14dc 的 GitHub Actions #6 已 success，本機45項測試與 production HTTP流程通過，並完成新增／編輯／刪除確認及取消的瀏覽器操作，見 [Project 驗證](verification/PROJECTS-001.md)。接續依使用者指示先整理 [WMS 需求](WMS-REQUIREMENTS.md)，一般商品／零件已確認，其餘規則區分提案與待決策。Google 其餘人工情境、延後的邀請補驗及 PR 審查仍待完成，不宣告正式上線或所有人工驗收完成。
+2026-10-26 進度：M0 PR #3、AUTH-001 PR #5、TENANCY-001 PR #7、PROJECTS-001 PR #10 均已提出 Draft。Project commit 96c14dc 的 GitHub Actions #6 已 success，本機45項測試與 production HTTP流程通過，並完成新增／編輯／刪除確認及取消的瀏覽器操作，見 [Project 驗證](verification/PROJECTS-001.md)。WMS 需求與 WMS-001 主檔已依次開工；主檔驗證結果見 [WMS-001 報告](verification/WMS-001.md)。過帳等未定規則保留給後續 Issue。Google 其餘人工情境、延後的邀請補驗及 PR 審查仍待完成，不宣告正式上線或所有人工驗收完成。
 
 ## 第一次交付
-WMS 需求補充：使用者已確認一般商品／零件、多倉庫＋儲位（目前僅分地點）、可能拆零出貨及整數計量。規格預設每倉提供未分配儲位、每 SKU 設基本單位與整數包裝比例；細節與驗收見 WMS-REQUIREMENTS.md v0.2。過帳權限與其他作業規則仍待確認。
+WMS 需求補充：使用者已確認一般商品／零件、多倉庫＋儲位（目前僅分地點）、可能拆零出貨及整數計量。規格預設每倉提供未分配儲位、每 SKU 設基本單位與整數包裝比例；細節與驗收見 WMS-REQUIREMENTS.md v0.2。WMS-001 實作已建立主檔與換算試算；庫存餘額、入出庫與過帳權限尚未實作。過帳權限與其他作業規則仍待確認。
 
 2026-10-26 使用者補充決定：邀請寄信人工驗證延後至整體建置完成，追蹤 QA-001 / Issue #8，不阻擋開發；實作順序為 Project 專案管理 → WMS 倉儲 → 其他業務模組。Project 作為 M2 第一個業務資源已確認；WMS 細部作業規則及其餘模組順序仍待定義。
 

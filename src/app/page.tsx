@@ -10,7 +10,8 @@ export default function Home() {
       <Link href="/sign-in">Google／電子郵件登入</Link>
       <Link href="/workspaces">工作空間與成員</Link>
       <Link href="/projects">專案管理</Link>
-      <aside>專案管理已加入。WMS 倉儲與其他業務模組接續開發；目前為本機測試版本。</aside>
+      <Link href="/wms">WMS 倉儲主檔</Link>
+      <aside>專案與倉儲主檔已加入。入出庫與其他業務流程接續開發；目前為本機測試版本。</aside>
     </main>
   );
 }

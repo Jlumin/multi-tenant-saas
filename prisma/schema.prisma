@@ -12,6 +12,8 @@ model Tenant {
   invitations Invitation[]
   auditEvents TenantAudit[]
   projects Project[]
+  wmsProducts WmsProduct[]
+  wmsWarehouses WmsWarehouse[]
 
   @@map("tenants")
 }
@@ -155,4 +157,80 @@ model TenantAudit {
 
   @@index([tenantId, createdAt])
   @@map("tenant_audit")
+}
+
+model WmsProduct {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code String @map("sku") @db.VarChar(40)
+  name String @db.VarChar(120)
+  baseUnit String @map("base_unit") @db.VarChar(20)
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  units WmsProductUnit[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, id])
+  @@map("wms_products")
+}
+
+model WmsProductUnit {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  code String @db.VarChar(40)
+  name String @db.VarChar(120)
+  factor Int
+  isBase Boolean @default(false) @map("is_base")
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  product WmsProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, productId, id])
+  @@unique([tenantId, productId, code])
+  @@index([tenantId, productId, isActive, id])
+  @@map("wms_product_units")
+}
+
+model WmsWarehouse {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code String @db.VarChar(40)
+  name String @db.VarChar(120)
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  locations WmsLocation[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, id])
+  @@map("wms_warehouses")
+}
+
+model WmsLocation {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  code String @db.VarChar(40)
+  name String @db.VarChar(120)
+  isDefault Boolean @default(false) @map("is_default")
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  warehouse WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, warehouseId, id])
+  @@unique([tenantId, warehouseId, code])
+  @@index([tenantId, warehouseId, isActive, id])
+  @@map("wms_locations")
 }

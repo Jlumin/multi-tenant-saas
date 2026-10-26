@@ -115,6 +115,7 @@ try {
   assert.equal((await request(projectURL, { name: "Edited HTTP project", description: "Updated", version: 1 }, "PATCH")).status, 200);
   assert.equal((await request(projectURL, { name: "Stale edit", version: 1 }, "PATCH")).status, 409);
   assert.equal((await request(projectURL, { version: 2 }, "DELETE")).status, 403);
+  const inviteeCookies = new Map(jar);
   const secondProvision = spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/tsx/dist/cli.mjs", import.meta.url)), "scripts/provision-tenant.ts", "--name", "Other fictional HTTP tenant", "--slug", `other-${randomUUID()}`, "--owner-user-id", signedUser.id], { env: { ...process.env, DATABASE_URL: url.toString() }, encoding: "utf8", timeout: 30000 });
   assert.equal(secondProvision.status, 0);
   const secondTenant = secondProvision.stdout.match(/Tenant provisioned: ([0-9a-f-]+)/)?.[1];
@@ -125,12 +126,32 @@ try {
   }
   jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   assert.equal((await request(`${base}/api/projects/${secondTenant}/${project.id}`)).status, 404);
+  const wms = `${base}/api/wms/${tenantId}`;
+  const warehouseResponse = await request(`${wms}/warehouses`, { code: "HTTP-SITE", name: "Fictional HTTP site" });
+  assert.equal(warehouseResponse.status, 201);
+  const warehouse = await warehouseResponse.json();
+  const locationsURL = `${wms}/warehouses/${warehouse.id}/locations`;
+  assert.equal((await request(locationsURL)).status, 200);
+  const productResponse = await request(`${wms}/products`, { code: "HTTP-PART", name: "Fictional HTTP part", baseUnit: "個" });
+  assert.equal(productResponse.status, 201);
+  const product = await productResponse.json();
+  const unitsURL = `${wms}/products/${product.id}/units`;
+  const unitResponse = await request(unitsURL, { code: "BOX20", name: "箱", factor: 20 });
+  assert.equal(unitResponse.status, 201);
+  const unit = await unitResponse.json();
+  const conversion = await request(`${wms}/products/${product.id}/convert`, { unitId: unit.id, quantity: 2 });
+  assert.equal(conversion.status, 200);
+  assert.equal((await conversion.json()).baseQuantity, 40);
+  jar.clear(); for (const [key, value] of inviteeCookies) jar.set(key, value);
+  assert.equal((await request(`${wms}/warehouses`, { code: "MEMBER-SITE", name: "Member forbidden" })).status, 403);
+  assert.equal((await request(`${base}/api/wms/${secondTenant}/warehouses`)).status, 404);
+  jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   assert.equal((await request(projectURL, { version: 2 }, "DELETE")).status, 200);
   assert.equal((await request(projectURL)).status, 404);
   assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, version conflicts, cross-tenant refusal, soft delete and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion/role and tenant isolation, version conflicts, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;

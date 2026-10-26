@@ -79,7 +79,7 @@ export function TenantPanel() {
   }
 
   return <>
-    <nav aria-label="工作空間操作"><Link href="/sign-in">帳號與登入</Link><Link href="/projects">專案管理</Link><button disabled={busy} onClick={() => run(refresh)}>重新整理</button></nav>
+    <nav aria-label="工作空間操作"><Link href="/sign-in">帳號與登入</Link><Link href="/projects">專案管理</Link><Link href="/wms">WMS 倉儲主檔</Link><button disabled={busy} onClick={() => run(refresh)}>重新整理</button></nav>
     {message && <p role="status" className="notice">{message}</p>}
     {busy && <p role="status">處理中…</p>}
     <p>已加入的工作空間：顯示 {workspaces.length} / {total}。需要新租戶時，請聯絡維運管理員。</p>
