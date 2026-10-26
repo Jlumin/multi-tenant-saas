@@ -92,6 +92,7 @@ describe("tenant API with real Better Auth sessions and PostgreSQL", () => {
     expect(data.items.some((item: { tenant: { id: string } }) => item.tenant.id === b.id)).toBe(false);
     for (const path of [b.id, `${b.id}/members`, `${b.id}/invitations`, `${b.id}/audit`]) expect((await api("ownerA", path)).status).toBe(404);
     expect((await api("outsider", a.id)).status).toBe(404);
+    expect((await api("ownerA", `${a.id}/members/${actors.ownerB.id}`, "PATCH", { role: "member" })).status).toBe(404);
     expect((await api("member", a.id)).status).toBe(200);
   });
 
@@ -132,6 +133,17 @@ describe("tenant API with real Better Auth sessions and PostgreSQL", () => {
     const third = await service.invite(actors.ownerA, a.id, actors.invitee.email, "member"); const revoked = token();
     expect((await api("ownerA", `${a.id}/invitations/${third.id}`, "POST", {})).status).toBe(200);
     expect((await api("invitee", "accept", "POST", { token: revoked })).status).toBe(400);
+  });
+
+  it("grants Owner only through an explicit valid invitation and can re-invite disabled members", async () => {
+    await service.invite(actors.ownerA, a.id, actors.invitee.email, "owner");
+    expect((await api("invitee", "accept", "POST", { token: token() })).status).toBe(200);
+    expect((await api("invitee", `${a.id}/members`)).status).toBe(200);
+    await service.changeMember(actors.ownerA, a.id, actors.member.id, { isActive: false });
+    await service.invite(actors.ownerA, a.id, actors.member.email, "member");
+    expect((await api("member", "accept", "POST", { token: token() })).status).toBe(200);
+    expect((await api("member", a.id)).status).toBe(200);
+    expect((await api("member", `${a.id}/members`)).status).toBe(403);
   });
 
   it("serializes concurrent invite acceptance and preserves one active membership", async () => {

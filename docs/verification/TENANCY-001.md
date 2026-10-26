@@ -11,7 +11,7 @@
 | npm ci | 乾淨安裝通過，374 packages；Prisma Client 自動產生 |
 | npm run lint / typecheck | 通過，含 React hooks 與 Next typegen |
 | npm test | 10/10 通過，既有 auth/config/handler/health |
-| npm run test:auth | 23/23 通過：9 個 auth、14 個新增 tenancy PostgreSQL 測試 |
+| npm run test:auth | 24/24 通過：9 個 auth、15 個新增 tenancy PostgreSQL 測試 |
 | npm run db:validate | schema valid |
 | npm run db:smoke | 三份 migration；空庫建立、重複 deploy 不變、schema diff 空；既有 tenants 欄位與新增 is_active 預設通過 |
 | npm run test:http -- --dev | 真實 dev 首頁／health 200、POST 405 |
