@@ -2,6 +2,8 @@
 
 狀態：邏輯模型提案；沒有已執行 schema 或 migration。2026-10-26。
 
+以上是原提案起點。現在 M0/AUTH-001/TENANCY-001/PROJECTS-001/WMS-001 已有五份 versioned migrations，實際模型以 prisma/schema.prisma 與 ADR 0002–0005 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit，業務資源為 projects 與 WMS 主檔。Project 採 tenant/creator 複合 FK、version 與 soft delete，詳見 [Project 資料與交易](PROJECTS.md)；WMS 商品、整數包裝單位、倉庫及儲位採租戶與父資源複合 FK，詳見 [WMS 主檔設計](adr/0005-wms-masters.md)。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。下方表格保留最初邏輯提案，不代表實際 SQL 表名。
+
 ## 模型
 | 表 | 主要欄位 | 約束／用途 |
 | --- | --- | --- |
@@ -30,6 +32,6 @@ M0 僅需最小 tenants 表作 migration smoke test；其他模型於後續 Issu
 種子資料只用虛構租戶與使用者，重複執行需可預期。
 
 ## 必要資料測試
-M0：空庫 apply migration 成功，tenants 表存在；重複 migration 不產生額外變更。
+M0/WMS：空庫 apply migration 成功；重複 migration 不產生額外變更且 Prisma schema drift 為空。
 M1/M2：唯一性、FK、非法 role、缺 tenant_id 失敗；兩租戶交叉 CRUD 被拒絕；跨租戶 child FK 失敗；最後 owner 併發操作保護。
 資料庫約束測試不取代 API 授權測試。
