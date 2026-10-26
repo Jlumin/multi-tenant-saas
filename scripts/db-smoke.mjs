@@ -57,7 +57,7 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 1);
+  assert.equal(history.length, 2);
   assert.ok(history[0].finished_at);
   prisma(["migrate", "deploy"], targetURL);
   assert.deepEqual((await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows, history);

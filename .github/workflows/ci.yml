@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
+      mailpit:
+        image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+        ports: ['1025:1025', '8025:8025']
       postgres:
         image: postgres:17.11-bookworm@sha256:858bb5e98eed02eb8cafbcdc007f9a65d1b613972028944a8ec2133ccaf80d27
         env:
@@ -27,6 +30,10 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
       DATABASE_URL: postgresql://bootstrap_ci:ci-disposable-example@127.0.0.1:5432/unused
       TEST_DATABASE_ADMIN_URL: postgresql://bootstrap_ci:ci-disposable-example@127.0.0.1:5432/postgres
+      TEST_MAILPIT_URL: http://127.0.0.1:8025
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: '1025'
+      SMTP_FROM: noreply@example.test
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -40,6 +47,8 @@ jobs:
       - run: npm test
       - run: npm run db:validate
       - run: npm run db:smoke
+      - run: npm run test:auth
       - run: npm run test:http -- --dev
       - run: npm run build
       - run: npm run test:http
+      - run: npm run test:auth:http

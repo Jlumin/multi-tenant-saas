@@ -1,6 +1,6 @@
-# 本機開發與驗證（BOOTSTRAP-001 / M0）
+# 本機開發與驗證
 
-本次只提供單一 Web 應用、健康檢查、PostgreSQL tenants schema 與 CI。登入、membership/角色、租戶選取、CRUD、RLS、Agent 與正式部署均未實作。保留根目錄 README 原內容；工具鏈決策見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
+BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。membership/角色、租戶選取、CRUD、RLS、Agent 與正式部署仍未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
 
 ## 先決條件與安裝
 
@@ -17,7 +17,7 @@ npm install --global npm@11.19.1
 npm ci
 ```
 
-npm ci 僅安裝 lockfile 內版本，不修改鎖檔。無需正式秘密、登入 SDK 或資料庫即可安裝、lint、型別檢查、單元測試及 build。第一次安裝需要 npm registry 與 Prisma engine 下載網路。
+npm ci 僅安裝 lockfile 內版本，不修改鎖檔，postinstall 會產生 Prisma Client。無需正式秘密或資料庫即可安裝、lint、型別檢查、單元測試及 build；實際登入需另外設定 AUTHENTICATION.md 的環境。第一次安裝需要 npm registry 與 Prisma engine 下載網路。
 
 ## 環境設定
 
@@ -55,7 +55,7 @@ npm run db:status
 
 db:up 只啟動本專案 PostgreSQL（本機 55432），與其他 Compose 專案隔離。資料保存在本專案 postgres_data volume。db:deploy 是 Prisma migrate deploy，套用版本化 SQL，不使用 db push 或 reset。只會新增 tenants 表與 Prisma migration history；schema 與 SQL 一起提交。
 
-tenants 欄位：UUID id（DB gen_random_uuid 預設）、name、unique slug、created_at（timestamptz，預設現在時間），全部 NOT NULL。M0 不提供建立或查詢租戶的 API。
+tenants 欄位：UUID id（DB gen_random_uuid 預設）、name、unique slug、created_at（timestamptz，預設現在時間），全部 NOT NULL。AUTH-001 另增 auth_* 表，不改動既有 migration；仍不提供建立或查詢租戶的 API。db:up 現在也會啟動本機 Mailpit，詳見 AUTH 指南。
 
 重跑 `npm run db:deploy` 不應產生新 migration；`npm run db:status` 應為 up to date。已有 volume 時變更 POSTGRES_PASSWORD 不會重設既有帳密；請使用原本連線設定或另建明確隔離的開發專案，不刪除用途不明的 volume。
 
@@ -65,7 +65,7 @@ tenants 欄位：UUID id（DB gen_random_uuid 預設）、name、unique slug、c
 npm run dev
 ```
 
-開啟 http://127.0.0.1:3000 ，GET http://127.0.0.1:3000/api/health 回 HTTP 200、固定 `{ "status": "ok" }`，Cache-Control: no-store。這是 liveness，不代表 DB readiness。首頁不需要 DB；沒有假登入或預設管理員。
+開啟 http://127.0.0.1:3000 ，GET http://127.0.0.1:3000/api/health 回 HTTP 200、固定 `{ "status": "ok" }`，Cache-Control: no-store。這是 liveness，不代表 DB readiness。首頁不需要 DB；沒有假登入或預設管理員。實際登入請使用 BETTER_AUTH_URL 指定的相同 origin（預設 http://localhost:3000/sign-in）。
 
 dev/start 預設僅綁定 127.0.0.1。停止 Web 使用 Ctrl+C。若 3000 被占用，可用 `npm run dev -- --port 3001` 並以日誌顯示的 port 為準。
 
