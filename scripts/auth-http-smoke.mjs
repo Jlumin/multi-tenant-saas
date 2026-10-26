@@ -44,9 +44,9 @@ try {
   assert.ok(healthy);
   assert.equal((await fetch(`${base}/sign-in`)).status, 200);
 
-  async function request(path, body, method = body === undefined ? "GET" : "POST") {
+  async function request(path, body, method = body === undefined ? "GET" : "POST", extraHeaders = {}) {
     const response = await fetch(path.startsWith("http") ? path : `${base}/api/auth/${path}`, {
-      method, redirect: "manual", headers: { Origin: base, "Content-Type": "application/json", Cookie: [...jar].map(([key, value]) => `${key}=${value}`).join("; ") },
+      method, redirect: "manual", headers: { Origin: base, "Content-Type": "application/json", Cookie: [...jar].map(([key, value]) => `${key}=${value}`).join("; "), ...extraHeaders },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     for (const cookie of response.headers.getSetCookie()) {
@@ -139,10 +139,35 @@ try {
   const unitResponse = await request(unitsURL, { code: "BOX20", name: "箱", factor: 20 });
   assert.equal(unitResponse.status, 201);
   const unit = await unitResponse.json();
+  const baseUnit = (await (await request(unitsURL)).json()).items.find(item => item.isBase);
+  assert.ok(baseUnit);
   const conversion = await request(`${wms}/products/${product.id}/convert`, { unitId: unit.id, quantity: 2 });
   assert.equal(conversion.status, 200);
   assert.equal((await conversion.json()).baseQuantity, 40);
+  assert.equal((await fetch(`${base}/wms/stock`)).status, 200);
+  const location = (await (await request(locationsURL)).json()).items[0];
+  const stockDocsURL = `${base}/api/wms-stock/${tenantId}/documents`;
+  const receiptResponse = await request(stockDocsURL, { type: "inbound", warehouseId: warehouse.id, lines: [{ productId: product.id, locationId: location.id, unitId: unit.id, quantity: 2 }] });
+  assert.equal(receiptResponse.status, 201);
+  const receipt = await receiptResponse.json();
+  const postingKey = `http-${randomUUID()}`;
+  const postURL = `${stockDocsURL}/${receipt.id}/post`;
+  const receiptPosted = await request(postURL, { version: receipt.version }, "POST", { "Idempotency-Key": postingKey });
+  assert.equal(receiptPosted.status, 200);
+  assert.equal((await receiptPosted.json()).status, "posted");
+  const replay = await request(postURL, { version: receipt.version }, "POST", { "Idempotency-Key": postingKey });
+  assert.equal(replay.status, 200);
+  const balanceURL = `${base}/api/wms-stock/${tenantId}/balances?productId=${product.id}`;
+  assert.equal((await (await request(balanceURL)).json()).items[0].quantity, 40);
+  const impossibleResponse = await request(stockDocsURL, { type: "outbound", warehouseId: warehouse.id, lines: [{ productId: product.id, locationId: location.id, unitId: baseUnit.id, quantity: 41 }] });
+  assert.equal(impossibleResponse.status, 201);
+  const impossible = await impossibleResponse.json();
+  assert.equal((await request(`${stockDocsURL}/${impossible.id}/post`, { version: impossible.version }, "POST", { "Idempotency-Key": `http-${randomUUID()}` })).status, 409);
   jar.clear(); for (const [key, value] of inviteeCookies) jar.set(key, value);
+  const memberDraftResponse = await request(stockDocsURL, { type: "outbound", warehouseId: warehouse.id, lines: [{ productId: product.id, locationId: location.id, unitId: baseUnit.id, quantity: 1 }] });
+  assert.equal(memberDraftResponse.status, 201);
+  const memberDraft = await memberDraftResponse.json();
+  assert.equal((await request(`${stockDocsURL}/${memberDraft.id}/post`, { version: memberDraft.version }, "POST", { "Idempotency-Key": `http-${randomUUID()}` })).status, 403);
   assert.equal((await request(`${wms}/warehouses`, { code: "MEMBER-SITE", name: "Member forbidden" })).status, 403);
   assert.equal((await request(`${base}/api/wms/${secondTenant}/warehouses`)).status, 404);
   jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
@@ -151,7 +176,7 @@ try {
   assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion/role and tenant isolation, version conflicts, soft delete and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion, stock draft/post/idempotency/balance/negative-stock rejection/Member denial, role and tenant isolation, version conflicts, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;

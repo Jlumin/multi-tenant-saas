@@ -111,4 +111,4 @@ npm run db:down
 - health 200 但 DB 失敗：這是預期分工，health 不驗證資料庫，另跑 db:smoke。
 - CI 無執行結果：確認 Actions 啟用，若外部 PR 需要批准，由維護者處理；未執行不能標示通過。
 
-本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。真實 Google 登入已人工確認；邀請寄信真人補驗依使用者要求延後至整體建置完成，追蹤 QA-001 / #8；不代表正式郵件或部署已驗收。Project 介面位於 /projects，測試沿用原 CI 指令；test:auth 已包含 projects.postgres.ts，HTTP/SMTP smoke 也涵蓋 Project CRUD 與跨租戶拒絕。
+本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。真實 Google 登入已人工確認；邀請寄信真人補驗依使用者要求延後至整體建置完成，追蹤 QA-001 / #8；不代表正式郵件或部署已驗收。Project 介面位於 /projects；WMS 入出庫測試介面位於 /wms/stock。test:auth 包含 PostgreSQL tenant、Project 與 WMS 隔離測試，HTTP/SMTP smoke 也涵蓋 WMS 一般入庫過帳、冪等重播、禁止負庫存與 Owner-only 過帳。
