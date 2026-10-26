@@ -21,8 +21,9 @@ function prisma(args, databaseURL) {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/prisma/build/index.js", import.meta.url)), ...args], {
     env: { ...process.env, DATABASE_URL: databaseURL }, encoding: "utf8", timeout: 60000,
   });
-  // Do not echo CLI output, connection URLs or credentials, even on errors.
-  assert.equal(result.status, 0, `Prisma ${args.join(" ")} failed; inspect local configuration (CLI output suppressed).`);
+  // Surface useful migration diagnostics while removing any connection URL.
+  const diagnostic = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[redacted PostgreSQL URL]").slice(-3000);
+  assert.equal(result.status, 0, `Prisma ${args.join(" ")} failed. ${diagnostic}`);
 }
 
 try {
@@ -59,7 +60,10 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 5);
+  assert.equal(history.length, 6);
+  const wmsTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['wms_documents','wms_document_lines','wms_stock_balances','wms_stock_movements','wms_posting_keys']) AS name ORDER BY table_name")).rows;
+  assert.equal(wmsTables.length, 5);
+  assert.ok(wmsTables.every(row => row.table_name !== null));
   assert.ok(history[0].finished_at);
   prisma(["migrate", "deploy"], targetURL);
   assert.deepEqual((await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows, history);

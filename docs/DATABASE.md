@@ -2,7 +2,7 @@
 
 狀態：邏輯模型提案；沒有已執行 schema 或 migration。2026-10-26。
 
-以上是原提案起點。現在 M0/AUTH-001/TENANCY-001/PROJECTS-001/WMS-001 已有五份 versioned migrations，實際模型以 prisma/schema.prisma 與 ADR 0002–0005 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit，業務資源為 projects 與 WMS 主檔。Project 採 tenant/creator 複合 FK、version 與 soft delete，詳見 [Project 資料與交易](PROJECTS.md)；WMS 商品、整數包裝單位、倉庫及儲位採租戶與父資源複合 FK，詳見 [WMS 主檔設計](adr/0005-wms-masters.md)。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。下方表格保留最初邏輯提案，不代表實際 SQL 表名。
+以上是原提案起點。現在 M0/AUTH-001/TENANCY-001/PROJECTS-001/WMS-001 已有五份 versioned migrations；WMS-002 將新增第六份。實際模型以 prisma/schema.prisma 與 ADR 0002–0006 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit，業務資源為 projects 與 WMS 主檔、文件及庫存流水。Project 採 tenant/creator 複合 FK、version 與 soft delete，詳見 [Project 資料與交易](PROJECTS.md)；WMS 主檔詳見 [ADR 0005](adr/0005-wms-masters.md)，庫存交易與餘額由流水同交易維護，詳見 [ADR 0006](adr/0006-wms-stock-posting.md)。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。下方表格保留最初邏輯提案，不代表實際 SQL 表名。
 
 ## 模型
 | 表 | 主要欄位 | 約束／用途 |
