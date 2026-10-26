@@ -2,6 +2,8 @@
 
 狀態：邏輯模型提案；沒有已執行 schema 或 migration。2026-10-26。
 
+以上是原提案起點。現在 M0/AUTH-001/TENANCY-001 已有三份 versioned migrations，實際模型以 prisma/schema.prisma 與 [租戶決策](adr/0003-tenancy.md) 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit；projects 尚未建立。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。
+
 ## 模型
 | 表 | 主要欄位 | 約束／用途 |
 | --- | --- | --- |
