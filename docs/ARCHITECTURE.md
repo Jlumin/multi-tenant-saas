@@ -1,6 +1,8 @@
 # 系統架構
 
-狀態：提案，尚未實作。2026-10-26。
+狀態：初版提案保留於下方；M0/M1 已有工程，M2 Project 於 feat/projects-001 實作。2026-10-26。
+
+實際選型與版本見 package.json、ADR 0001–0004。身分使用 Better Auth，Google 與電子郵件／密碼已實作；Project 的 tenant scope、交易與資料保留邊界見 [PROJECTS](PROJECTS.md)。下方原始提案不是最新交付清單。
 
 ## 技術預設提案
 TypeScript + Next.js（App Router）作為單一 Web 應用與 server endpoints；PostgreSQL 儲存資料；Prisma 管理 schema/migrations；npm 與 lockfile；Vitest 作單元／整合測試。
