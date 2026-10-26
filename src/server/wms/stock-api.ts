@@ -51,7 +51,8 @@ export async function handleStock(request: Request): Promise<Response> {
     } else if (resource === "documents" && path.length === 4 && action === "post" && request.method === "POST") {
       const data = await body(request, ["version"]), key = request.headers.get("idempotency-key") ?? "";
       result = await service.post(session.user, tenantId, id, data.version as number, key, requestId);
-    } else if (resource === "balances" && path.length === 2 && request.method === "GET") {
+    } else if (resource === "movements" && path.length === 3 && request.method === "GET") result = await service.getMovement(session.user, tenantId, id);
+    else if (resource === "balances" && path.length === 2 && request.method === "GET") {
       result = await service.balances(session.user, tenantId, { productId: optionalId(url.searchParams.get("productId"), "product"), warehouseId: optionalId(url.searchParams.get("warehouseId"), "warehouse"), locationId: optionalId(url.searchParams.get("locationId"), "location") }, limit, offset);
     } else if (resource === "movements" && path.length === 2 && request.method === "GET") {
       result = await service.movements(session.user, tenantId, { productId: optionalId(url.searchParams.get("productId"), "product"), warehouseId: optionalId(url.searchParams.get("warehouseId"), "warehouse"), locationId: optionalId(url.searchParams.get("locationId"), "location") }, limit, offset);

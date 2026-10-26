@@ -7,6 +7,13 @@ export interface StockLineInput { productId: string; locationId: string; unitId:
 export interface StockDraftInput { warehouseId: string; memo?: string; lines: StockLineInput[] }
 const MAX = 2147483647;
 const view = { lines: { orderBy: { position: "asc" as const } } };
+const movementView = {
+  document: { select: { number: true, type: true, postedAt: true, postedById: true } },
+  line: { select: { unitCode: true, unitName: true, baseUnit: true, quantity: true, factor: true, baseQuantity: true, position: true } },
+  product: { select: { code: true, name: true, baseUnit: true } },
+  warehouse: { select: { code: true, name: true } },
+  location: { select: { code: true, name: true } },
+};
 function quantity(value: unknown) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > MAX) throw new TenantError(400, "invalid_quantity");
   return value;
@@ -172,8 +179,16 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => {
         await requireTenantContext(tx, actor, tenantId);
         const where = { tenantId, ...(filter.productId ? { productId: filter.productId } : {}), ...(filter.warehouseId ? { warehouseId: filter.warehouseId } : {}), ...(filter.locationId ? { locationId: filter.locationId } : {}) };
-        const [items, total] = await Promise.all([tx.wmsStockMovement.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit, skip: offset }), tx.wmsStockMovement.count({ where })]);
+        const [items, total] = await Promise.all([tx.wmsStockMovement.findMany({ where, include: movementView, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit, skip: offset }), tx.wmsStockMovement.count({ where })]);
         return { items, total, limit, offset };
+      });
+    },
+    async getMovement(actor: Actor, tenantId: string, id: string) {
+      return db.$transaction(async tx => {
+        await requireTenantContext(tx, actor, tenantId);
+        const movement = await tx.wmsStockMovement.findFirst({ where: { tenantId, id }, include: movementView });
+        if (!movement) throw new TenantError(404, "not_found");
+        return movement;
       });
     },
   };

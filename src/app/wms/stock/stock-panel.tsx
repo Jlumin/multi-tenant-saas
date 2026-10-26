@@ -2,13 +2,15 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Master = { id: string; code: string; name: string; isActive: boolean; baseUnit?: string; factor?: number; isBase?: boolean; isDefault?: boolean };
+type Master = { id: string; code: string; name: string; isActive: boolean; baseUnit?: string; factor?: number; isBase?: boolean; isDefault?: boolean; warehouseId?: string };
 type Unit = Master & { factor: number; version: number };
 type Workspace = { role: "owner" | "member"; tenant: { id: string; name: string } };
 type Line = { id: string; productId: string; locationId: string; unitId: string; unitCode: string; unitName: string; baseUnit: string; quantity: number; factor: number; unitVersion: number; baseQuantity: number; position: number };
 type Doc = { id: string; number: string; type: "inbound" | "outbound"; status: "draft" | "posted" | "cancelled"; memo: string; warehouseId: string; version: number; createdAt: string; lines: Line[] };
 type Balance = { tenantId: string; productId: string; warehouseId: string; locationId: string; quantity: number };
 type Page<T> = { items: T[]; total: number; limit: number; offset: number };
+type Movement = { id: string; delta: number; actorId: string; createdAt: string; document: { number: string; type: "inbound" | "outbound"; postedAt: string | null; postedById: string | null }; product: { code: string; name: string; baseUnit: string }; warehouse: { code: string; name: string }; location: { code: string; name: string }; line: { unitCode: string; unitName: string; baseUnit: string; quantity: number; factor: number; baseQuantity: number; position: number } };
+type QueryFilters = { productId: string; warehouseId: string; locationId: string };
 const messages: Record<string, string> = { unauthenticated: "請先登入。", not_found: "資料不存在或沒有存取權。", owner_required: "只有 Owner 可以過帳。", master_inactive: "商品、倉庫、儲位或單位已停用。", insufficient_stock: "庫存不足，沒有過帳任何明細。", stock_overflow: "庫存超過整數上限。", unit_changed: "包裝規格已變更，請更新草稿明細後再過帳。", version_conflict: "單據已被更新，請重新載入。", document_not_editable: "只有草稿可以修改。", document_not_cancellable: "只有草稿可以取消。", document_not_postable: "只有草稿可以過帳。", idempotency_conflict: "此請求識別碼已用於其他內容。", invalid_quantity: "數量必須是正整數。", invalid_lines: "請完整選擇商品、儲位、單位和數量。" };
 async function request<T>(path: string, method = "GET", body?: unknown, key?: string): Promise<T> {
   const response = await fetch(path, { method, credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -23,28 +25,53 @@ const statusName = (status: Doc["status"]) => ({ draft: "草稿", posted: "已�
 
 export function StockPanel() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]), [tenantId, setTenantId] = useState("");
-  const [type, setType] = useState<Doc["type"]>("inbound"), [warehouses, setWarehouses] = useState<Master[]>([]), [locations, setLocations] = useState<Master[]>([]), [products, setProducts] = useState<Master[]>([]), [units, setUnits] = useState<Unit[]>([]);
+  const [type, setType] = useState<Doc["type"]>("inbound"), [warehouses, setWarehouses] = useState<Master[]>([]), [locations, setLocations] = useState<Master[]>([]), [allLocations, setAllLocations] = useState<Master[]>([]), [products, setProducts] = useState<Master[]>([]), [units, setUnits] = useState<Unit[]>([]);
   const [warehouseId, setWarehouseId] = useState(""), [locationId, setLocationId] = useState(""), [productId, setProductId] = useState(""), [unitId, setUnitId] = useState(""), [count, setCount] = useState("1"), [memo, setMemo] = useState("");
-  const [documents, setDocuments] = useState<Doc[]>([]), [selected, setSelected] = useState<Doc | null>(null), [balances, setBalances] = useState<Balance[]>([]), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
+  const [documents, setDocuments] = useState<Doc[]>([]), [selected, setSelected] = useState<Doc | null>(null), [selectedMovement, setSelectedMovement] = useState<Movement | null>(null), [balances, setBalances] = useState<Balance[]>([]), [formBalances, setFormBalances] = useState<Balance[]>([]), [balanceTotal, setBalanceTotal] = useState(0), [balanceOffset, setBalanceOffset] = useState(0), [movements, setMovements] = useState<Movement[]>([]), [movementTotal, setMovementTotal] = useState(0), [movementOffset, setMovementOffset] = useState(0), [queryFilters, setQueryFilters] = useState<QueryFilters>({ productId: "", warehouseId: "", locationId: "" }), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const role = workspaces.find(item => item.tenant.id === tenantId)?.role;
   const draftEditable = !selected || selected.status === "draft";
+  async function loadBalancePage(id: string, filters: QueryFilters, offset = 0) {
+    if (!id) return { items: [], total: 0, limit: 20, offset } as Page<Balance>;
+    const params = new URLSearchParams({ limit: "20", offset: String(offset) });
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+    return request<Page<Balance>>(`${stockPath(id)}/balances?${params}`);
+  }
+  async function loadMovementPage(id: string, filters: QueryFilters, offset = 0) {
+    if (!id) return { items: [], total: 0, limit: 20, offset } as Page<Movement>;
+    const params = new URLSearchParams({ limit: "20", offset: String(offset) });
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+    return request<Page<Movement>>(`${stockPath(id)}/movements?${params}`);
+  }
+  async function loadQueries(id = tenantId, filters = queryFilters, balancePage = 0, movementPage = 0) {
+    const [balancePageResult, movementPageResult] = await Promise.all([loadBalancePage(id, filters, balancePage), loadMovementPage(id, filters, movementPage)]);
+    setBalances(balancePageResult.items); setBalanceTotal(balancePageResult.total); setBalanceOffset(balancePageResult.offset);
+    setMovements(movementPageResult.items); setMovementTotal(movementPageResult.total); setMovementOffset(movementPageResult.offset);
+  }
   async function loadWorkspace(id: string) {
-    setTenantId(id); setSelected(null); setMessage("");
-    if (!id) { setWarehouses([]); setProducts([]); setLocations([]); setUnits([]); setDocuments([]); setBalances([]); return; }
+    setTenantId(id); setSelected(null); setSelectedMovement(null); setMessage("");
+    const emptyFilters = { productId: "", warehouseId: "", locationId: "" };
+    setQueryFilters(emptyFilters); setBalanceOffset(0); setMovementOffset(0);
+    if (!id) { setWarehouses([]); setProducts([]); setLocations([]); setAllLocations([]); setUnits([]); setDocuments([]); setBalances([]); setFormBalances([]); setBalanceTotal(0); setMovements([]); setMovementTotal(0); return; }
     const [wh, pr, docs] = await Promise.all([
       request<Page<Master>>(`${masterPath(id)}/warehouses?limit=100`), request<Page<Master>>(`${masterPath(id)}/products?limit=100`), request<Page<Doc>>(`${stockPath(id)}/documents?limit=50`),
     ]);
     const activeWarehouses = wh.items.filter(item => item.isActive), activeProducts = pr.items.filter(item => item.isActive);
     setWarehouses(activeWarehouses); setProducts(activeProducts); setDocuments(docs.items);
+    const nestedLocations = await Promise.all(activeWarehouses.map(async item => {
+      const result = await request<Page<Master>>(`${masterPath(id)}/warehouses/${item.id}/locations?limit=100`);
+      return result.items.map(location => ({ ...location, warehouseId: item.id }));
+    }));
+    setAllLocations(nestedLocations.flat().filter(item => item.isActive));
     const firstWarehouse = activeWarehouses[0]?.id ?? "", firstProduct = activeProducts[0]?.id ?? "";
     setWarehouseId(firstWarehouse); setProductId(firstProduct);
-    await Promise.all([loadLocationData(id, firstWarehouse), loadUnits(id, firstProduct)]);
+    await Promise.all([loadLocationData(id, firstWarehouse), loadUnits(id, firstProduct), loadQueries(id, emptyFilters)]);
   }
   async function refreshDocs(id = tenantId) { if (id) setDocuments((await request<Page<Doc>>(`${stockPath(id)}/documents?limit=50`)).items); }
   async function loadLocationData(id: string, warehouse: string) {
-    if (!id || !warehouse) { setLocations([]); setLocationId(""); setBalances([]); return; }
+    if (!id || !warehouse) { setLocations([]); setLocationId(""); setFormBalances([]); return; }
     const [loc, bal] = await Promise.all([request<Page<Master>>(`${masterPath(id)}/warehouses/${warehouse}/locations?limit=100`), request<Page<Balance>>(`${stockPath(id)}/balances?warehouseId=${warehouse}&limit=100`)]);
-    const activeLocations = loc.items.filter(item => item.isActive); setLocations(activeLocations); setLocationId(activeLocations.find(item => item.isDefault)?.id ?? activeLocations[0]?.id ?? ""); setBalances(bal.items);
+    setFormBalances(bal.items);
+    const activeLocations = loc.items.filter(item => item.isActive); setLocations(activeLocations); setLocationId(activeLocations.find(item => item.isDefault)?.id ?? activeLocations[0]?.id ?? "");
   }
   async function loadUnits(id: string, product: string) {
     if (!id || !product) { setUnits([]); setUnitId(""); return; }
@@ -67,8 +94,11 @@ export function StockPanel() {
     });
   }
   async function cancel() { if (!selected) return; await run(async () => { const doc = await request<Doc>(`${stockPath(tenantId)}/documents/${selected.id}/cancel`, "POST", { version: selected.version }); setSelected(doc); await refreshDocs(); setMessage("草稿已取消，庫存沒有異動。"); }); }
-  async function post() { if (!selected) return; await run(async () => { const doc = await request<Doc>(`${stockPath(tenantId)}/documents/${selected.id}/post`, "POST", { version: selected.version }, crypto.randomUUID()); setSelected(doc); await refreshDocs(); await loadLocationData(tenantId, doc.warehouseId); setMessage(`${typeName(doc.type)}已過帳，庫存異動已寫入。`); }); }
-  const available = balances.find(item => item.productId === productId && item.locationId === locationId)?.quantity ?? 0;
+  async function post() { if (!selected) return; await run(async () => { const doc = await request<Doc>(`${stockPath(tenantId)}/documents/${selected.id}/post`, "POST", { version: selected.version }, crypto.randomUUID()); setSelected(doc); await refreshDocs(); await loadLocationData(tenantId, doc.warehouseId); await loadQueries(); setMessage(`${typeName(doc.type)}已過帳，庫存異動已寫入。`); }); }
+  async function updateFilters(patch: Partial<QueryFilters>) { const next = { ...queryFilters, ...patch }; setQueryFilters(next); await loadQueries(tenantId, next, 0, 0); }
+  const pageLabel = (offset: number, total: number, count: number) => total ? `${offset + 1}–${offset + count} / ${total} 筆` : "0 筆";
+  const filteredLocations = queryFilters.warehouseId ? allLocations.filter(item => item.warehouseId === queryFilters.warehouseId) : allLocations;
+  const available = formBalances.find(item => item.productId === productId && item.locationId === locationId)?.quantity ?? 0;
   return <>
     {message && <p role="status" className="notice">{message}</p>}
     <label>工作空間<select aria-label="工作空間" disabled={busy} value={tenantId} onChange={event => void run(() => loadWorkspace(event.target.value))}><option value="">請選擇工作空間</option>{workspaces.map(item => <option key={item.tenant.id} value={item.tenant.id}>{item.tenant.name} · {item.role}</option>)}</select></label>
@@ -89,9 +119,22 @@ export function StockPanel() {
       <h2>庫存單據</h2>
       {!documents.length && <p>目前沒有庫存單據。儲存入庫或出庫草稿後會列在這裡。</p>}
       {documents.map(doc => <article key={doc.id}><h3>{typeName(doc.type)} · {doc.number} · {statusName(doc.status)}</h3><p>{doc.lines.length} 項明細 · 版本 {doc.version} · {new Date(doc.createdAt).toLocaleString()}</p><button type="button" disabled={busy} onClick={() => void run(async () => selectedDoc(await request<Doc>(`${stockPath(tenantId)}/documents/${doc.id}`)))}>查看單據</button></article>)}
-      <h2>目前庫存（大於零）</h2>
-      {!balances.length && <p>所選倉庫目前沒有庫存。</p>}
-      {balances.map(balance => { const product = products.find(item => item.id === balance.productId), location = locations.find(item => item.id === balance.locationId); return <p key={`${balance.productId}:${balance.locationId}`}>{product?.code ?? "商品"} · {location?.code ?? "儲位"}：{balance.quantity} {product?.baseUnit}</p>; })}
+      <section aria-labelledby="balance-heading"><h2 id="balance-heading">目前庫存（大於零）</h2>
+        <div className="form-grid" aria-label="庫存篩選">
+          <label>商品篩選<select aria-label="庫存商品篩選" value={queryFilters.productId} disabled={busy} onChange={event => void run(() => updateFilters({ productId: event.target.value }))}><option value="">全部商品</option>{products.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+          <label>倉庫篩選<select aria-label="庫存倉庫篩選" value={queryFilters.warehouseId} disabled={busy} onChange={event => void run(() => updateFilters({ warehouseId: event.target.value, locationId: "" }))}><option value="">全部倉庫</option>{warehouses.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+          <label>儲位篩選<select aria-label="庫存儲位篩選" value={queryFilters.locationId} disabled={busy} onChange={event => void run(() => updateFilters({ locationId: event.target.value }))}><option value="">全部儲位</option>{filteredLocations.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+        </div>
+        {!balances.length && <p>目前篩選沒有庫存。</p>}
+        <div className="table-scroll"><table><thead><tr><th>商品</th><th>倉庫</th><th>儲位</th><th>現有量</th></tr></thead><tbody>{balances.map(balance => { const product = products.find(item => item.id === balance.productId), warehouse = warehouses.find(item => item.id === balance.warehouseId), location = allLocations.find(item => item.id === balance.locationId); return <tr key={`${balance.productId}:${balance.warehouseId}:${balance.locationId}`}><td>{product?.code} · {product?.name}</td><td>{warehouse?.code} · {warehouse?.name}</td><td>{location?.code} · {location?.name}</td><td>{balance.quantity} {product?.baseUnit}</td></tr>; })}</tbody></table></div>
+        <nav aria-label="庫存分頁"><span>{pageLabel(balanceOffset, balanceTotal, balances.length)}</span><button type="button" disabled={busy || balanceOffset === 0} onClick={() => void run(() => loadQueries(tenantId, queryFilters, Math.max(0, balanceOffset - 20), movementOffset))}>上一頁</button><button type="button" disabled={busy || balanceOffset + balances.length >= balanceTotal} onClick={() => void run(() => loadQueries(tenantId, queryFilters, balanceOffset + 20, movementOffset))}>下一頁</button></nav>
+      </section>
+      <section aria-labelledby="movement-heading"><h2 id="movement-heading">庫存異動明細</h2>
+        {!movements.length && <p>目前篩選沒有異動記錄。</p>}
+        <div className="table-scroll"><table><thead><tr><th>過帳時間</th><th>來源單據</th><th>商品</th><th>倉庫／儲位</th><th>異動量</th><th>操作者</th><th>詳情</th></tr></thead><tbody>{movements.map(item => <tr key={item.id}><td>{item.document.postedAt ? new Date(item.document.postedAt).toLocaleString() : new Date(item.createdAt).toLocaleString()}</td><td>{typeName(item.document.type)} · {item.document.number}</td><td>{item.product.code} · {item.product.name}</td><td>{item.warehouse.code} · {item.location.code}</td><td>{item.delta > 0 ? "+" : ""}{item.delta} {item.line.baseUnit}</td><td>{item.actorId.slice(0, 8)}</td><td><button type="button" disabled={busy} onClick={() => void run(async () => setSelectedMovement(await request<Movement>(`${stockPath(tenantId)}/movements/${item.id}`)))}>查看明細</button></td></tr>)}</tbody></table></div>
+        {selectedMovement && <article aria-label="異動詳情"><h3>{typeName(selectedMovement.document.type)} · {selectedMovement.document.number}</h3><p>{selectedMovement.product.code} · {selectedMovement.product.name}，輸入 {selectedMovement.line.quantity} {selectedMovement.line.unitName} × {selectedMovement.line.factor} = {selectedMovement.line.baseQuantity} {selectedMovement.line.baseUnit}</p><p>{selectedMovement.warehouse.name} · {selectedMovement.location.name}；操作者 ID：{selectedMovement.actorId}</p><button type="button" onClick={() => setSelectedMovement(null)}>關閉明細</button></article>}
+        <nav aria-label="異動分頁"><span>{pageLabel(movementOffset, movementTotal, movements.length)}</span><button type="button" disabled={busy || movementOffset === 0} onClick={() => void run(() => loadQueries(tenantId, queryFilters, balanceOffset, Math.max(0, movementOffset - 20)))}>上一頁</button><button type="button" disabled={busy || movementOffset + movements.length >= movementTotal} onClick={() => void run(() => loadQueries(tenantId, queryFilters, balanceOffset, movementOffset + 20))}>下一頁</button></nav>
+      </section>
     </>}
   </>;
 }
