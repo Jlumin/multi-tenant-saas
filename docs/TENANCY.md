@@ -63,4 +63,4 @@ test:auth 現在包含 tenancy.postgres.ts：使用真實 Better Auth signed ses
 
 test:auth:http 加入真正 production HTTP + SMTP/Mailpit 的維運 CLI→邀請→第二帳號註冊／驗證→接受→Member 管理拒絕→重播拒絕→登出。測試庫均隨機命名且只清理自身新庫，沒有 reset 既有資料。停止服務沿用 db:stop / db:down，保留 PostgreSQL volume。
 
-真實 Google OAuth、正式 SMTP、RLS、業務 CRUD、MFA、分散式入口限流、DB runtime 角色分權與留存政策仍未驗收；安全取捨見 ADR 0003。
+真實 Google 登入與第一個本機租戶的 Owner 畫面已人工確認，範圍與未完成情境見 [本機驗證補充](verification/M1-LOCAL-20261026.md)。正式 SMTP、RLS、業務 CRUD、MFA、分散式入口限流、DB runtime 角色分權與留存政策仍未驗收；安全取捨見 ADR 0003。
