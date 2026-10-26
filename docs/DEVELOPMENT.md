@@ -1,6 +1,6 @@
 # 本機開發與驗證
 
-BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。membership/角色、租戶選取、CRUD、RLS、Agent 與正式部署仍未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
+BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。業務 CRUD、RLS、Agent 與正式部署仍未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
 
 ## 先決條件與安裝
 
@@ -111,4 +111,4 @@ npm run db:down
 - health 200 但 DB 失敗：這是預期分工，health 不驗證資料庫，另跑 db:smoke。
 - CI 無執行結果：確認 Actions 啟用，若外部 PR 需要批准，由維護者處理；未執行不能標示通過。
 
-本機驗證與 PR CI 證據見 [BOOTSTRAP-001 驗證報告](verification/BOOTSTRAP-001.md)。正式登入、授權與跨租戶隔離仍屬 M1，不在本 Issue 宣稱完成。
+本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。原 BOOTSTRAP-001 只涵蓋 M0；目前 AUTH/TENANCY 工程不代表真實 Google OAuth、正式郵件或部署已驗收。

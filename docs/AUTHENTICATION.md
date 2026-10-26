@@ -1,6 +1,6 @@
 # AUTH-001 開發與驗證
 
-已加入 Google 與電子郵件／密碼身分整合；租戶成員／角色與資料存取仍未實作。依賴 PR #3，首次使用先讀 DEVELOPMENT.md。原 README 保留。
+已加入 Google 與電子郵件／密碼身分整合；租戶成員／角色接續於 TENANCY-001，見 TENANCY.md。依賴 PR #3，首次使用先讀 DEVELOPMENT.md。原 README 保留。
 
 ## 本機啟動
 
@@ -27,7 +27,7 @@ SMTP_HOST / PORT / SECURE / FROM 皆在 .env 設定，SECURE 使用 1 或 0；US
 - `/api/auth/[...all]`：有限白名單的 Better Auth routes（sign-up/email、sign-in/email、sign-in/social、get-session、sign-out、verify-email、send-verification-email、request-password-reset、reset-password 與其 GET token 連結、callback/google、error）。
 - `/api/auth-capabilities`：只回 Google 是否已配置，不回憑證或環境內容。
 - 缺 secret／SMTP／DB 等設定時 auth 回泛化 503；`/api/health` 仍固定 200，不讀 DB，也不證明登入可用。
-- 不信任同 email 自動 linking，不開放額外 account/token 管理 API。帳號可建立，但不代表可建立／加入租戶。
+- 不信任同 email 自動 linking，不開放額外 account/token 管理 API。帳號可建立，但租戶需由管理員建立，再由 Owner 邀請後加入。
 
 ## 測試與 CI
 

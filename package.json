@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:auth": "vitest run --config vitest.auth.config.ts",
     "test:auth:http": "node scripts/auth-http-smoke.mjs",
+    "tenant:provision": "tsx scripts/provision-tenant.ts",
     "build": "next build",
     "test:http": "node scripts/http-smoke.mjs",
     "db:up": "docker compose up -d --wait",
@@ -48,6 +49,7 @@
     "globals": "17.13.0",
     "prisma": "7.10.1",
     "typescript": "5.9.3",
+    "tsx": "4.23.15",
     "typescript-eslint": "8.72.0",
     "vitest": "5.0.5"
   }

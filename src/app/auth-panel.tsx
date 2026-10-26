@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 
 type Mode = "signin" | "signup" | "forgot" | "reset";
-interface Session { user: { name: string; email: string }; }
+interface Session { user: { id: string; name: string; email: string }; }
 
 export function AuthPanel({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -64,7 +65,9 @@ export function AuthPanel({ initialMode = "signin" }: { initialMode?: Mode }) {
   return <section className="auth-panel" aria-label="帳號登入">
     {session ? <>
       <h2>已登入</h2><p>{session.user.name} · {session.user.email}</p>
-      <p>身分已驗證。租戶與成員權限尚未啟用，此帳號沒有租戶資料存取權。</p>
+      <p>身分已驗證。工作空間存取權仍依有效成員資格決定。</p>
+      <details><summary>提供給管理員的帳號識別碼</summary><code>{session.user.id}</code></details>
+      <Link href="/workspaces">選擇工作空間</Link>
       <button disabled={busy} onClick={() => run(async () => { await post("sign-out", {}); setSession(null); })}>登出</button>
     </> : <>
       <h2>{{ signin: "登入帳號", signup: "建立帳號", forgot: "忘記密碼", reset: "重設密碼" }[mode]}</h2>

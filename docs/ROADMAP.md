@@ -9,6 +9,8 @@
 | M2 / 待開 Issue | project CRUD、基本 UI、稽核與 E2E | PRD MVP 驗收逐項通過 | M1、確認 project 為首個業務資源 |
 | M3 / 待開 Issue | 部署、備份還原、監控、安全與產品試用 | 部署與復原演練、上線條件審查 | 部署供應商、資料政策、M2 |
 
+2026-10-26 進度：M0 PR #3、AUTH-001 PR #5 已提出 Draft 且 CI 通過。使用者確認「管理員建立租戶並邀請成員」，接續 TENANCY-001 / Issue #6 的 Owner/Member、隔離與邀請交付。M1 工程結果待 PR 驗證與人工審查；真實 Google OAuth 尚未驗證，不宣告正式上線或整個 M1 已驗收。下一階段 M2 的 project 是否為首個業務資源仍待確認。
+
 ## 第一次交付
 BOOTSTRAP-001 只建立可驗證的本機與 CI 基礎，不實作完整 SaaS 或 Agent。
 實作從文件分支分出；文件 PR 未合併時，實作 PR 先以文件分支為 base，以免混合差異。

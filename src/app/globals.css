@@ -17,3 +17,7 @@ button:disabled { opacity: .55; cursor: wait; }
 nav { display: flex; flex-wrap: wrap; gap: .5rem; }
 .hint { color: #617281; font-size: .85rem; }
 .error { color: #972c1a; } .notice { color: #17675b; }
+select { display: block; padding: .65rem; margin: .4rem 0; max-width: 100%; font: inherit; }
+.member-row, article { padding: 1rem 0; border-top: 1px solid #dce5ed; }
+.check { display: flex; gap: .6rem; align-items: center; } .check input { display: inline-block; width: auto; margin: 0; }
+code { overflow-wrap: anywhere; } li { overflow-wrap: anywhere; line-height: 1.8; }

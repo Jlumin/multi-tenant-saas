@@ -45,9 +45,11 @@ try {
     { column_name: "name", data_type: "text", is_nullable: "NO" },
     { column_name: "slug", data_type: "text", is_nullable: "NO" },
     { column_name: "created_at", data_type: "timestamp with time zone", is_nullable: "NO" },
+    { column_name: "is_active", data_type: "boolean", is_nullable: "NO" },
   ]);
   const inserted = (await database.query("INSERT INTO tenants (name, slug) VALUES ($1,$2) RETURNING *", ["Fictional tenant A", "smoke-a"])).rows[0];
   assert.match(inserted.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(inserted.is_active, true);
   assert.ok(inserted.created_at instanceof Date && Math.abs(Date.now() - inserted.created_at.getTime()) < 60000);
   await database.query("INSERT INTO tenants (name, slug) VALUES ($1,$2)", ["Fictional tenant B", "smoke-b"]);
   await assert.rejects(database.query("INSERT INTO tenants (name, slug) VALUES ($1,$2)", ["Duplicate slug", "smoke-a"]), { code: "23505" });
@@ -57,7 +59,7 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 2);
+  assert.equal(history.length, 3);
   assert.ok(history[0].finished_at);
   prisma(["migrate", "deploy"], targetURL);
   assert.deepEqual((await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows, history);

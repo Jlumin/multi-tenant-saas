@@ -60,27 +60,52 @@ try {
   const password = `Auth-test-only-${randomUUID()}!`;
   assert.equal((await request("sign-up/email", { name: "Fictional HTTP user", email, password, callbackURL: "/sign-in" })).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  let verification;
-  for (let i = 0; i < 20; i++) {
-    const inbox = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/messages`)).json();
-    const message = inbox.messages?.find(m => m.To?.some(to => to.Address === email));
-    if (message) {
-      const mail = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/message/${message.ID}`)).json();
-      verification = mail.Text?.match(/https?:\/\/\S+/)?.[0];
-      if (verification) break;
+  async function mailURL(recipient, pathname) {
+    for (let i = 0; i < 20; i++) {
+      const inbox = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/messages`)).json();
+      for (const message of inbox.messages?.filter(m => m.To?.some(to => to.Address === recipient)) ?? []) {
+        const mail = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/message/${message.ID}`)).json();
+        const link = mail.Text?.match(/https?:\/\/\S+/)?.[0];
+        if (link && new URL(link).pathname === pathname) return link;
+      }
+      await delay(250);
     }
-    await delay(250);
+    throw new Error("Expected test mail not found");
   }
+  const verification = await mailURL(email, "/api/auth/verify-email");
   assert.ok(verification);
   assert.equal(new URL(verification).origin, base);
   assert.ok([200, 302].includes((await request(verification)).status));
   const signedIn = await request("sign-in/email", { email, password });
   assert.equal(signedIn.status, 200);
   assert.ok(signedIn.headers.getSetCookie().some(c => /HttpOnly/i.test(c)));
-  assert.equal((await (await request("get-session")).json()).user.email, email);
+  const signedUser = (await (await request("get-session")).json()).user;
+  assert.equal(signedUser.email, email);
+  const provision = spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/tsx/dist/cli.mjs", import.meta.url)), "scripts/provision-tenant.ts", "--name", "Fictional HTTP tenant", "--slug", `http-${randomUUID()}`, "--owner-user-id", signedUser.id], { env: { ...process.env, DATABASE_URL: url.toString() }, encoding: "utf8", timeout: 30000 });
+  assert.equal(provision.status, 0);
+  const tenantId = provision.stdout.match(/Tenant provisioned: ([0-9a-f-]+)/)?.[1];
+  assert.ok(tenantId);
+  const tenantURL = `${base}/api/tenancy/${tenantId}`;
+  assert.equal((await request(tenantURL)).status, 200);
+  const invitee = `invited-${randomUUID()}@example.test`;
+  assert.equal((await request(`${tenantURL}/invitations`, { email: invitee })).status, 201);
+  const invitation = await mailURL(invitee, "/invite");
+  assert.equal(new URL(invitation).origin, base);
+  const invitationToken = new URL(invitation).searchParams.get("token");
+  jar.clear();
+  assert.equal((await request("sign-up/email", { name: "Fictional invited user", email: invitee, password, callbackURL: "/sign-in" })).status, 200);
+  assert.ok([200, 302].includes((await request(await mailURL(invitee, "/api/auth/verify-email"))).status));
+  assert.equal((await request("sign-in/email", { email: invitee, password })).status, 200);
+  assert.equal((await request(tenantURL)).status, 404);
+  assert.equal((await request(`${base}/api/tenancy/accept`, { token: invitationToken })).status, 200);
+  assert.equal((await request(tenantURL)).status, 200);
+  assert.equal((await request(`${tenantURL}/members`)).status, 403);
+  assert.equal((await request(`${base}/api/tenancy/accept`, { token: invitationToken })).status, 400);
+  assert.equal((await fetch(`${base}/workspaces`)).status, 200);
+  assert.equal((await fetch(`${base}/invite`)).status, 200);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next production HTTP + Prisma/PostgreSQL + Nodemailer/Mailpit signup, verification, login/session and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, operator provisioning, invitation delivery/acceptance, role/replay refusal, and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;
