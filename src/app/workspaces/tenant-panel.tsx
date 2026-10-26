@@ -79,14 +79,14 @@ export function TenantPanel() {
   }
 
   return <>
-    <nav aria-label="工作空間操作"><Link href="/sign-in">帳號與登入</Link><button disabled={busy} onClick={() => run(refresh)}>重新整理</button></nav>
+    <nav aria-label="工作空間操作"><Link href="/sign-in">帳號與登入</Link><Link href="/projects">專案管理</Link><button disabled={busy} onClick={() => run(refresh)}>重新整理</button></nav>
     {message && <p role="status" className="notice">{message}</p>}
     {busy && <p role="status">處理中…</p>}
     <p>已加入的工作空間：顯示 {workspaces.length} / {total}。需要新租戶時，請聯絡維運管理員。</p>
     <nav aria-label="選擇工作空間">{workspaces.map(w => <button key={w.tenant.id} disabled={busy} onClick={() => run(() => load(w))}>{w.tenant.name} · {w.role}</button>)}</nav>
     {!workspaces.length && <p>目前沒有工作空間。可請 Owner 寄送邀請，再從邀請信加入。</p>}
     {selected && <section><h2>{selected.tenant.name} · {selected.role}</h2>
-      {selected.role === "member" ? <p>你是此工作空間成員。成員管理只開放給 Owner，業務功能尚未啟用。</p> : <>
+      {selected.role === "member" ? <p>你是此工作空間成員，可前往專案管理；成員管理只開放給 Owner。</p> : <>
         <h3>邀請成員</h3><form onSubmit={invite}><fieldset disabled={busy}>
           <label>收件電子郵件<input type="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} /></label>
           <label>加入角色<select value={role} onChange={e => setRole(e.target.value as Role)}><option value="member">Member</option><option value="owner">Owner（可管理成員與邀請）</option></select></label>

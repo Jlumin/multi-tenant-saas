@@ -11,6 +11,7 @@ model Tenant {
   memberships Membership[]
   invitations Invitation[]
   auditEvents TenantAudit[]
+  projects Project[]
 
   @@map("tenants")
 }
@@ -98,10 +99,29 @@ model Membership {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   invitations Invitation[]
+  projects Project[]
 
   @@id([tenantId, userId])
   @@index([userId, isActive])
   @@map("memberships")
+}
+
+model Project {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  name String @db.VarChar(120)
+  description String @default("") @db.VarChar(2000)
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  version Int @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator Membership @relation(fields: [tenantId, createdBy], references: [tenantId, userId], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, deletedAt, createdAt, id])
+  @@map("projects")
 }
 
 model Invitation {

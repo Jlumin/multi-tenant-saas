@@ -6,6 +6,8 @@ export class TenantError extends Error {
 }
 export interface Actor { id: string; email: string; emailVerified: boolean }
 type Tx = Prisma.TransactionClient;
+// Public platform contracts shared by tenant-scoped business services.
+export { context as requireTenantContext, lock as lockTenant, audit as recordTenantEvent };
 type Mail = (message: { to: string; subject: string; text: string }) => Promise<void>;
 const invitationView = { id: true, email: true, role: true, expiresAt: true, acceptedAt: true, revokedAt: true, createdAt: true } as const;
 const memberView = { userId: true, role: true, isActive: true, user: { select: { name: true, email: true } } } as const;

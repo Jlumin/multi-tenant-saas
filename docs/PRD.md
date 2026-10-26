@@ -2,7 +2,7 @@
 
 版本：0.1，2026-10-26，提案待產品確認。
 
-2026-10-26 已確認：登入支援 Google 與電子郵件／密碼；租戶由受信任維運管理員建立，Owner 寄邀請讓成員加入，不提供公開自助建租戶。已建立 M0、AUTH-001 與 TENANCY-001 分支供 Draft PR 審查，尚未合併或部署；真實 Google OAuth 仍待人工驗證。
+2026-10-26 已確認：登入支援 Google 與電子郵件／密碼；租戶由受信任維運管理員建立，Owner 寄邀請讓成員加入，不提供公開自助建租戶。M0、AUTH-001 與 TENANCY-001 已有 Draft PR，尚未合併或部署；真實 Google 登入已人工確認。邀請寄信真人驗證延後至整體建置完成，追蹤 QA-001 / #8。使用者確認依序做 Project 專案管理、WMS 倉儲、其他模組；M2 Project 規格見 [PROJECTS](PROJECTS.md)。
 
 ## 已知事實
 儲存庫名稱為 multi-tenant-saas，說明為 Agent for saas system；僅有 README。
@@ -48,4 +48,4 @@ BOOTSTRAP-001 只交付 M0；登入與 CRUD 不應在第一張 Issue 擴張實�
 - secrets 不在版本控制中；授權與隔離有自動化測試。
 
 ## 開放問題
-目標客群、核心業務資源是否為 project、是否需要 Agent、正式寄信與部署供應商、資料保留政策。
+目標客群、WMS 作業細節及其他模組順序、是否需要 Agent、正式寄信與部署供應商、資料保留政策。Project 已確認為第一個業務資源。

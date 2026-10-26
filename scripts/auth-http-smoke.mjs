@@ -92,6 +92,7 @@ try {
   const invitation = await mailURL(invitee, "/invite");
   assert.equal(new URL(invitation).origin, base);
   const invitationToken = new URL(invitation).searchParams.get("token");
+  const ownerCookies = new Map(jar);
   jar.clear();
   assert.equal((await request("sign-up/email", { name: "Fictional invited user", email: invitee, password, callbackURL: "/sign-in" })).status, 200);
   assert.ok([200, 302].includes((await request(await mailURL(invitee, "/api/auth/verify-email"))).status));
@@ -103,9 +104,33 @@ try {
   assert.equal((await request(`${base}/api/tenancy/accept`, { token: invitationToken })).status, 400);
   assert.equal((await fetch(`${base}/workspaces`)).status, 200);
   assert.equal((await fetch(`${base}/invite`)).status, 200);
+  assert.equal((await fetch(`${base}/projects`)).status, 200);
+  const projectsURL = `${base}/api/projects/${tenantId}`;
+  const projectResponse = await request(projectsURL, { name: "Fictional HTTP project", description: "Test-only notes" });
+  assert.equal(projectResponse.status, 201);
+  const project = await projectResponse.json();
+  const projectURL = `${projectsURL}/${project.id}`;
+  assert.equal((await request(projectURL)).status, 200);
+  assert.equal((await request(projectsURL)).headers.get("cache-control"), "no-store");
+  assert.equal((await request(projectURL, { name: "Edited HTTP project", description: "Updated", version: 1 }, "PATCH")).status, 200);
+  assert.equal((await request(projectURL, { name: "Stale edit", version: 1 }, "PATCH")).status, 409);
+  assert.equal((await request(projectURL, { version: 2 }, "DELETE")).status, 403);
+  const secondProvision = spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/tsx/dist/cli.mjs", import.meta.url)), "scripts/provision-tenant.ts", "--name", "Other fictional HTTP tenant", "--slug", `other-${randomUUID()}`, "--owner-user-id", signedUser.id], { env: { ...process.env, DATABASE_URL: url.toString() }, encoding: "utf8", timeout: 30000 });
+  assert.equal(secondProvision.status, 0);
+  const secondTenant = secondProvision.stdout.match(/Tenant provisioned: ([0-9a-f-]+)/)?.[1];
+  assert.ok(secondTenant);
+  for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
+    const path = `${base}/api/projects/${secondTenant}${["PATCH", "DELETE"].includes(method) ? `/${project.id}` : ""}`;
+    assert.equal((await request(path, method === "GET" ? undefined : method === "DELETE" ? { version: 2 } : { name: "Cross-tenant", ...(method === "PATCH" ? { version: 2 } : {}) }, method)).status, 404);
+  }
+  jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
+  assert.equal((await request(`${base}/api/projects/${secondTenant}/${project.id}`)).status, 404);
+  assert.equal((await request(projectURL, { version: 2 }, "DELETE")).status, 200);
+  assert.equal((await request(projectURL)).status, 404);
+  assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, operator provisioning, invitation delivery/acceptance, role/replay refusal, and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, version conflicts, cross-tenant refusal, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;

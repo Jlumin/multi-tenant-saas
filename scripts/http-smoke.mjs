@@ -32,7 +32,7 @@ try {
   assert.deepEqual(await response.json(), { status: "ok" });
   const home = await fetch(base, { signal: AbortSignal.timeout(30000) });
   assert.equal(home.status, 200);
-  assert.match(await home.text(), /工程起點已就緒/);
+  assert.match(await home.text(), /你的團隊工作空間/);
   const unsupported = await fetch(`${base}/api/health`, { method: "POST" });
   assert.equal(unsupported.status, 405);
   console.log(`PASS: Next.js ${mode} homepage, real GET /api/health (fixed JSON/no-store) and POST 405.`);

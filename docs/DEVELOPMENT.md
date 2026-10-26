@@ -1,6 +1,6 @@
 # 本機開發與驗證
 
-BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。業務 CRUD、RLS、Agent 與正式部署仍未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
+BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。PROJECTS-001 新增 [Project 專案管理](PROJECTS.md)，需套用第四份 migration；WMS、RLS、Agent 與正式部署尚未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
 
 ## 先決條件與安裝
 
@@ -53,7 +53,7 @@ npm run db:deploy
 npm run db:status
 ```
 
-db:up 只啟動本專案 PostgreSQL（本機 55432），與其他 Compose 專案隔離。資料保存在本專案 postgres_data volume。db:deploy 是 Prisma migrate deploy，套用版本化 SQL，不使用 db push 或 reset。只會新增 tenants 表與 Prisma migration history；schema 與 SQL 一起提交。
+db:up 啟動本專案 PostgreSQL（本機 55432）與 Mailpit，與其他 Compose 專案隔離。資料保存在本專案 postgres_data volume。db:deploy 是 Prisma migrate deploy，套用版本化 SQL，不使用 db push 或 reset。依序建立 tenants、auth 身分、membership/invitation/audit、projects；schema 與 SQL 一起提交。
 
 tenants 欄位：UUID id（DB gen_random_uuid 預設）、name、unique slug、created_at（timestamptz，預設現在時間），全部 NOT NULL。AUTH-001 另增 auth_* 表，不改動既有 migration；仍不提供建立或查詢租戶的 API。db:up 現在也會啟動本機 Mailpit，詳見 AUTH 指南。
 
@@ -111,4 +111,4 @@ npm run db:down
 - health 200 但 DB 失敗：這是預期分工，health 不驗證資料庫，另跑 db:smoke。
 - CI 無執行結果：確認 Actions 啟用，若外部 PR 需要批准，由維護者處理；未執行不能標示通過。
 
-本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。原 BOOTSTRAP-001 只涵蓋 M0；目前 AUTH/TENANCY 工程不代表真實 Google OAuth、正式郵件或部署已驗收。
+本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。真實 Google 登入已人工確認；邀請寄信真人補驗依使用者要求延後至整體建置完成，追蹤 QA-001 / #8；不代表正式郵件或部署已驗收。Project 介面位於 /projects，測試沿用原 CI 指令；test:auth 已包含 projects.postgres.ts，HTTP/SMTP smoke 也涵蓋 Project CRUD 與跨租戶拒絕。
