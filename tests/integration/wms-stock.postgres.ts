@@ -196,7 +196,16 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
   it("keeps basic balance and movement queries tenant-scoped and paged", async () => {
     const first = await draft(); await post(first); const second = await draft(); await post(second);
     const balances = await api("member", `${a}/balances?productId=${productA}&limit=1`); expect((await balances.json()).total).toBe(1);
-    const moves = await api("member", `${a}/movements?warehouseId=${warehouseA}&limit=1`); expect((await moves.json()).total).toBe(2);
+    const moves = await api("member", `${a}/movements?warehouseId=${warehouseA}&limit=1&offset=0`), firstPage = await moves.json();
+    expect(firstPage).toMatchObject({ total: 2, limit: 1, offset: 0 });
+    expect(firstPage.items[0]).toMatchObject({ document: { number: second.number, type: "inbound" }, product: { code: "PART-A" }, line: { baseUnit: "個", baseQuantity: 20 } });
+    const secondPage = await (await api("member", `${a}/movements?warehouseId=${warehouseA}&limit=1&offset=1`)).json();
+    expect(secondPage.total).toBe(2); expect(secondPage.items[0].id).not.toBe(firstPage.items[0].id);
+    const detail = await api("member", `${a}/movements/${firstPage.items[0].id}`);
+    expect(detail.status).toBe(200); expect(await detail.json()).toMatchObject({ document: { number: second.number }, line: { baseUnit: "個", baseQuantity: 20 } });
+    expect((await api("outsider", `${a}/movements/${firstPage.items[0].id}`)).status).toBe(404);
+    expect((await api("ownerA", `${b}/movements/${firstPage.items[0].id}`)).status).toBe(404);
+    expect((await (await api("member", `${a}/movements?productId=${productB}`)).json()).total).toBe(0);
     const foreign = await api("ownerA", `${a}/balances?productId=${productB}`); expect((await foreign.json()).total).toBe(0);
     await db.membership.update({ where: { tenantId_userId: { tenantId: a, userId: actors.member.id } }, data: { isActive: false } });
     expect((await api("member", `${a}/balances`)).status).toBe(404);

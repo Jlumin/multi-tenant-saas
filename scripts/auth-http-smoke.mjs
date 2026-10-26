@@ -159,6 +159,13 @@ try {
   assert.equal(replay.status, 200);
   const balanceURL = `${base}/api/wms-stock/${tenantId}/balances?productId=${product.id}`;
   assert.equal((await (await request(balanceURL)).json()).items[0].quantity, 40);
+  const movementsURL = `${base}/api/wms-stock/${tenantId}/movements?productId=${product.id}&warehouseId=${warehouse.id}&locationId=${location.id}&limit=1&offset=0`;
+  const movementPage = await (await request(movementsURL)).json();
+  assert.equal(movementPage.total, 1);
+  assert.equal(movementPage.items[0].document.number, receipt.number);
+  const movementDetail = await request(`${base}/api/wms-stock/${tenantId}/movements/${movementPage.items[0].id}`);
+  assert.equal(movementDetail.status, 200);
+  assert.equal((await movementDetail.json()).line.baseQuantity, 40);
   const impossibleResponse = await request(stockDocsURL, { type: "outbound", warehouseId: warehouse.id, lines: [{ productId: product.id, locationId: location.id, unitId: baseUnit.id, quantity: 41 }] });
   assert.equal(impossibleResponse.status, 201);
   const impossible = await impossibleResponse.json();
@@ -176,7 +183,7 @@ try {
   assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion, stock draft/post/idempotency/balance/negative-stock rejection/Member denial, role and tenant isolation, version conflicts, soft delete and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion, stock draft/post/idempotency/balance and movement filters/paging/detail, negative-stock rejection, Member denial, tenant isolation, version conflicts, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;
