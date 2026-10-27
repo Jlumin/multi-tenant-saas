@@ -35,16 +35,16 @@ export async function handleStock(request: Request): Promise<Response> {
     let result: unknown, status = 200;
     if (resource === "documents" && path.length === 2 && request.method === "GET") {
       const type = url.searchParams.get("type"), state = url.searchParams.get("status");
-      if (type && type !== "inbound" && type !== "outbound" || state && !["draft", "posted", "cancelled"].includes(state)) throw new TenantError(400, "invalid_filter");
-      result = await service.listDocuments(session.user, tenantId, { ...(type ? { type: type as "inbound" | "outbound" } : {}), ...(state ? { status: state as "draft" | "posted" | "cancelled" } : {}) }, limit, offset);
+      if (type && !["inbound", "outbound", "transfer"].includes(type) || state && !["draft", "posted", "cancelled"].includes(state)) throw new TenantError(400, "invalid_filter");
+      result = await service.listDocuments(session.user, tenantId, { ...(type ? { type: type as "inbound" | "outbound" | "transfer" } : {}), ...(state ? { status: state as "draft" | "posted" | "cancelled" } : {}) }, limit, offset);
     } else if (resource === "documents" && path.length === 2 && request.method === "POST") {
-      const data = await body(request, ["type", "warehouseId", "memo", "lines"]);
-      if (data.type !== "inbound" && data.type !== "outbound") throw new TenantError(400, "invalid_type");
-      result = await service.createDraft(session.user, tenantId, data.type, { warehouseId: data.warehouseId as string, memo: data.memo as string | undefined, lines: data.lines as never }, requestId); status = 201;
+      const data = await body(request, ["type", "warehouseId", "destinationWarehouseId", "memo", "lines"]);
+      if (data.type !== "inbound" && data.type !== "outbound" && data.type !== "transfer") throw new TenantError(400, "invalid_type");
+      result = await service.createDraft(session.user, tenantId, data.type, { warehouseId: data.warehouseId as string, destinationWarehouseId: data.destinationWarehouseId as string | undefined, memo: data.memo as string | undefined, lines: data.lines as never }, requestId); status = 201;
     } else if (resource === "documents" && path.length === 3 && request.method === "GET") result = await service.getDocument(session.user, tenantId, id);
     else if (resource === "documents" && path.length === 3 && request.method === "PATCH") {
-      const data = await body(request, ["version", "memo", "lines"]);
-      result = await service.updateDraft(session.user, tenantId, id, data.version as number, { memo: data.memo as string | undefined, lines: data.lines as never }, requestId);
+      const data = await body(request, ["version", "memo", "lines", "destinationWarehouseId"]);
+      result = await service.updateDraft(session.user, tenantId, id, data.version as number, { memo: data.memo as string | undefined, lines: data.lines as never, destinationWarehouseId: data.destinationWarehouseId as string | undefined }, requestId);
     } else if (resource === "documents" && path.length === 4 && action === "cancel" && request.method === "POST") {
       const data = await body(request, ["version"]);
       result = await service.cancelDraft(session.user, tenantId, id, data.version as number, requestId);
