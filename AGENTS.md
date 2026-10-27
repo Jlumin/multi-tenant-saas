@@ -32,3 +32,13 @@ BOOTSTRAP-001 必須建立並記錄 install、dev、lint、typecheck、test、bu
 
 ## 完成定義
 驗收條件逐項有證據；必要測試通過；新手可按文件啟動；沒有秘密、無關修改或未說明限制；PR 可供人工審查。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
