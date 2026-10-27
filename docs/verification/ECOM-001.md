@@ -15,6 +15,7 @@
 - `npm run test:http`：通過，production server health smoke。
 - `npm run test:auth:http`：通過，真實 Next + PostgreSQL + Mailpit 流程新增 E-Commerce 管理頁、建立店面與商品、匿名公開瀏覽、草稿隱藏、Member 可讀不可寫。
 - Docker Compose PostgreSQL 與 Mailpit：兩個服務啟動並回報 healthy。
+- GitHub Actions Draft PR #25 / run #29：PASS；`npm ci`、lint、typecheck、unit、migration validation/smoke、PostgreSQL integration、dev/prod HTTP smoke、production build 與 auth HTTP smoke 均成功。
 
 ## 人工／產品確認
 
