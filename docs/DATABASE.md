@@ -17,6 +17,8 @@
 時間欄位使用 PostgreSQL timestamptz，應用以 UTC 處理。
 M0 僅需最小 tenants 表作 migration smoke test；其他模型於後續 Issue 實作，避免假裝已完成身分與授權。
 
+ECOM-001 新增 `ecom_stores` 與 `ecom_products`。一店／租戶及公開 slug 均有唯一約束；商品以 `(tenant_id, store_id)`、建立者 membership 複合外鍵限制關聯；價格採 `numeric(12,2)`，資料庫檢查非負與代碼／版本格式。觸發器保留列、固定 slug 與 ownership，更新須遞增 version。商品目錄不外鍵連 WMS，符合模組資料所有權。
+
 ## 隔離與完整性
 - 所有業務資料 tenant_id NOT NULL，索引以 tenant_id 起始以支援 scoped queries。
 - 授權查詢必須使用有效 membership；變更角色與移除成員採交易保護最後一位 owner。

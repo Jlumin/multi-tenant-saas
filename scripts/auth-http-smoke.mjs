@@ -126,6 +126,20 @@ try {
   }
   jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   assert.equal((await request(`${base}/api/projects/${secondTenant}/${project.id}`)).status, 404);
+  assert.equal((await fetch(`${base}/ecommerce`)).status, 200);
+  const storeSlug = `http-shop-${randomUUID()}`;
+  const storeResponse = await request(`${base}/api/ecommerce/${tenantId}/store`, { name: "Fictional HTTP shop", slug: storeSlug, currency: "TWD" });
+  assert.equal(storeResponse.status, 201);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-LIVE", name: "Public HTTP product", description: "Fictional catalog item", price: "120.50", isPublished: true })).status, 201);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-DRAFT", name: "Draft HTTP product", description: "Hidden item", price: "99", isPublished: false })).status, 201);
+  const publicCatalog = await fetch(`${base}/api/shop/${storeSlug}`);
+  assert.equal(publicCatalog.status, 200); assert.equal(publicCatalog.headers.get("cache-control"), "no-store");
+  const publicData = await publicCatalog.json(); assert.equal(publicData.products.length, 1); assert.equal(publicData.products[0].code, "HTTP-LIVE");
+  assert.equal((await fetch(`${base}/shop/${storeSlug}`)).status, 200);
+  jar.clear(); for (const [key, value] of inviteeCookies) jar.set(key, value);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`)).status, 200);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "MEMBER-TRY", name: "Denied", description: "", price: "1", isPublished: false })).status, 403);
+  jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   const wms = `${base}/api/wms/${tenantId}`;
   const warehouseResponse = await request(`${wms}/warehouses`, { code: "HTTP-SITE", name: "Fictional HTTP site" });
   assert.equal(warehouseResponse.status, 201);
@@ -183,7 +197,7 @@ try {
   assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, WMS master creation/default location/integer conversion, stock draft/post/idempotency/balance and movement filters/paging/detail, negative-stock rejection, Member denial, tenant isolation, version conflicts, soft delete and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, E-Commerce store/catalog/public-only-published browsing and Member denial, WMS masters/integer conversion/stock posting/balance/movement filters, negative-stock rejection, tenant isolation, version conflicts, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;

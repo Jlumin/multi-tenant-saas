@@ -11,7 +11,8 @@ export default function Home() {
       <Link href="/workspaces">工作空間與成員</Link>
       <Link href="/projects">專案管理</Link>
       <Link href="/wms">WMS 倉儲主檔</Link>
-      <aside>專案與倉儲主檔已加入。入出庫與其他業務流程接續開發；目前為本機測試版本。</aside>
+      <Link href="/ecommerce">E-Commerce 店面與商品目錄</Link>
+      <aside>專案、倉儲主檔與 E-Commerce 商品目錄已加入；目前為本機測試版本。</aside>
     </main>
   );
 }
