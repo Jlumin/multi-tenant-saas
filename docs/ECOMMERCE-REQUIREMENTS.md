@@ -139,3 +139,9 @@
 管理端為 `/ecommerce`；租戶內管理 API 為 `/api/ecommerce/{tenantId}/store` 與 `/api/ecommerce/{tenantId}/products`；公開頁與唯讀 API 分別為 `/shop/{slug}` 和 `/api/shop/{slug}`。授權仍以 session、有效 membership、角色與服務端 tenant scope 為準，tenantId 僅是選擇器。店面與商品以軟性狀態停用／下架，資料庫拒絕硬刪除並保留 metadata audit。
 
 本 Issue 的實作狀態與產品確認清單見 `docs/verification/ECOM-001.md`；其餘交易、會員與跨模組問題仍按上方「實作前需核定」清單逐 Issue 決定。
+
+## ECOM-002 實作切片（暫定）
+
+對應 Issue #26。此切片承接 ECOM-001，交付 browser localStorage 購物車、訪客結帳、server 價格快照及商家 Owner 訂單檢視；不含買家帳號、付款、稅、折扣、運費、配送、通知、WMS 庫存、CRM 或訂單生命週期。結帳只收姓名與 email，購物車只能有該 slug 店面的商品；一次最多 20 項、每項數量 1–99。價格不由瀏覽器提供；店面、商品與價格在租戶列鎖保護的同一 transaction 中重查。相同高熵請求 key 與相同規範化 payload 重送回傳同一訂單，不同 payload 回 409。訂單狀態固定 `submitted`，單價、名稱、代碼、幣別、數量、明細小計與總額均保存快照且資料庫禁止更新／刪除。Owner 可讀租戶訂單與買家姓名/email；Member、匿名與非成員不可讀。沒有訪客訂單查詢頁或郵件通知。
+
+訂單／明細與匿名 metadata audit 同交易提交；稽核與一般日誌不含姓名/email、token 或原始 payload。冪等資料採伺服器秘密 HMAC 摘要；購物車留在瀏覽器 localStorage。姓名與 email 暫以明文保存在訂單表，資料留存、刪除、匯出及正式試用政策均尚未核定，因此此功能目前只供本機／測試環境。測試證據及待產品確認項見 `docs/verification/ECOM-002.md`。
