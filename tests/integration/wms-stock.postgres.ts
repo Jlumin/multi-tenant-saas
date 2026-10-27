@@ -242,10 +242,14 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     expect((await api("member", `${a}/balances`)).status).toBe(404);
   });
   it("permits one opening balance per product location and reverses only when stock allows", async () => {
-    const openingResponse = await api("member", `${a}/documents`, "POST", { type: "opening", warehouseId: warehouseA, memo: "系統啟用", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 5 }] });
+    const deniedOpening = await api("member", `${a}/documents`, "POST", { type: "opening", warehouseId: warehouseA, memo: "系統啟用", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 5 }] });
+    expect(deniedOpening.status).toBe(403);
+    const missingReason = await api("ownerA", `${a}/documents`, "POST", { type: "opening", warehouseId: warehouseA, memo: "", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 5 }] });
+    expect(missingReason.status).toBe(400);
+    const openingResponse = await api("ownerA", `${a}/documents`, "POST", { type: "opening", warehouseId: warehouseA, memo: "系統啟用", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 5 }] });
     expect(openingResponse.status).toBe(201); const opening = await openingResponse.json();
     await post(opening);
-    const duplicate = await stock.createDraft(actors.ownerA, a, "opening", { warehouseId: warehouseA, lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 1 }] });
+    const duplicate = await stock.createDraft(actors.ownerA, a, "opening", { warehouseId: warehouseA, memo: "補登錯誤", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 1 }] });
     await expect(post(duplicate)).rejects.toMatchObject({ code: "opening_not_empty" });
     const sale = await draft("outbound", "ownerA", a, warehouseA, productA, locationA, baseA, 2); await post(sale);
     await expect(stock.reverse(actors.ownerA, a, opening.id, "期初輸入錯誤", `reversing-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "insufficient_stock" });

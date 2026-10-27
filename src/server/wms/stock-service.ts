@@ -89,8 +89,9 @@ export function createStock(db: PrismaClient) {
       validateLines(input.lines);
       if (typeof input.warehouseId !== "string") throw new TenantError(400, "invalid_payload");
       const description = memo(input.memo);
+      if (type === "opening" && !description) throw new TenantError(400, "invalid_memo");
       return db.$transaction(async tx => {
-        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, type === "opening");
         if (type === "transfer" ? typeof input.destinationWarehouseId !== "string" : input.destinationWarehouseId !== undefined) throw new TenantError(400, "invalid_payload");
         const lines = await prepareLines(tx, tenantId, input.warehouseId, input.lines, input.destinationWarehouseId);
         const id = randomUUID(), prefix = type === "inbound" ? "IN" : type === "outbound" ? "OUT" : type === "transfer" ? "TR" : "OPEN", number = `${prefix}-${randomUUID().slice(0, 8).toUpperCase()}`;
@@ -107,6 +108,10 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => {
         await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
         const current = await document(tx, tenantId, id);
+        if (current.type === "opening") {
+          await requireTenantContext(tx, actor, tenantId, true);
+          if (description !== undefined && !description) throw new TenantError(400, "invalid_memo");
+        }
         if (current.status !== "draft") throw new TenantError(409, "document_not_editable");
         if (current.version !== version) throw new TenantError(409, "version_conflict");
         const destinationWarehouseId = input.destinationWarehouseId ?? current.destinationWarehouseId ?? undefined;
@@ -127,6 +132,7 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => {
         await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
         const current = await document(tx, tenantId, id);
+        if (current.type === "opening") await requireTenantContext(tx, actor, tenantId, true);
         if (current.status !== "draft") throw new TenantError(409, "document_not_cancellable");
         if (current.version !== version) throw new TenantError(409, "version_conflict");
         await tx.wmsDocument.update({ where: { tenantId_id: { tenantId, id } }, data: { status: "cancelled", version: { increment: 1 } } });
