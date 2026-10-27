@@ -16,6 +16,8 @@ vi.mock("../../src/server/auth/runtime", () => ({ getAuth: runtime.auth }));
 vi.mock("../../src/server/platform", () => ({ getDatabase: runtime.database }));
 import { handleEcommerce } from "../../src/server/ecommerce/api";
 import { handlePublicShop } from "../../src/server/ecommerce/public-api";
+import { handlePublicCheckout } from "../../src/server/ecommerce/checkout-api";
+import { createEcommerceOrders } from "../../src/server/ecommerce/orders";
 
 const baseURL = "http://localhost:3000", dbName = `ecom_test_${randomUUID().replaceAll("-", "")}`;
 let admin: pg.Client, db: PrismaClient, created = false; let a: string, b: string;
@@ -44,6 +46,7 @@ beforeEach(async () => {
   a = (await db.tenant.create({ data: { name: "Ecom tenant A", slug: `ea-${randomUUID()}` } })).id;
   b = (await db.tenant.create({ data: { name: "Ecom tenant B", slug: `eb-${randomUUID()}` } })).id;
   await db.membership.createMany({ data: [{ tenantId: a, userId: actors.ownerA.id, role: "owner" }, { tenantId: a, userId: actors.member.id, role: "member" }, { tenantId: b, userId: actors.ownerB.id, role: "owner" }] });
+  vi.stubEnv("BETTER_AUTH_SECRET", "ecommerce integration test secret with sufficient entropy");
   vi.spyOn(console, "info").mockImplementation(() => {}); vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterAll(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); try { await db?.$disconnect(); } finally { try { if (created) await admin.query(`DROP DATABASE "${dbName}"`); } finally { await admin?.end(); } } });
@@ -102,5 +105,71 @@ describe("E-Commerce store and catalog with signed sessions and PostgreSQL", () 
     expect((await api("ownerA", `${a}/products`, "POST", productInput("CSRF"), { Origin: "https://attacker.example" })).status).toBe(403);
     await expect(db.ecomProduct.update({ where: { tenantId_storeId_id: { tenantId: a, storeId: (await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } })).id, id: created.id } }, data: { tenantId: b } })).rejects.toThrow();
     await expect(db.ecomProduct.delete({ where: { tenantId_storeId_id: { tenantId: a, storeId: (await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } })).id, id: created.id } } })).rejects.toThrow();
+  });
+  it("accepts guest orders with server prices, immutable snapshots, replay protection, and Owner-only reads", async () => {
+    const slug = `checkout-${randomUUID()}`; await api("ownerA", `${a}/store`, "POST", storeInput(slug));
+    const product = await (await api("ownerA", `${a}/products`, "POST", productInput("ORDER-1", true))).json();
+    const key = `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`;
+    const submit = (body: unknown) => handlePublicCheckout(new Request(`${baseURL}/api/shop/${slug}/checkout`, { method: "POST", headers: { Origin: baseURL, "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify(body) }), slug);
+    const body = { buyerName: "測試買家", buyerEmail: "buyer@example.test", lines: [{ productId: product.id, quantity: 2 }], price: "0.01", tenantId: b };
+    expect((await submit(body)).status).toBe(400);
+    const valid = { buyerName: "測試買家", buyerEmail: "buyer@example.test", lines: [{ productId: product.id, quantity: 2 }] };
+    const response = await submit(valid), order = await response.json();
+    expect(response.status).toBe(201); expect(order).toMatchObject({ status: "submitted", currency: "TWD", totalAmount: "241.00", replayed: false });
+    expect(order).not.toHaveProperty("buyerEmail"); expect(order).not.toHaveProperty("tenantId"); expect(order).not.toHaveProperty("storeId"); expect(order.lines[0]).toMatchObject({ productCode: "ORDER-1", productName: "ORDER-1 product", unitPrice: "120.50", quantity: 2, lineTotal: "241.00" });
+    const savedOrder = await db.ecomOrder.findFirstOrThrow({ where: { tenantId: a, orderNumber: order.orderNumber } });
+    const replay = await submit(valid); expect(replay.status).toBe(200); expect((await replay.json())).toMatchObject({ orderNumber: order.orderNumber, replayed: true });
+    expect((await submit({ ...valid, lines: [{ productId: product.id, quantity: 3 }] })).status).toBe(409);
+    const store = await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } });
+    const [ownerRead, memberRead, outsiderRead, otherTenantRead] = await Promise.all([
+      api("ownerA", `${a}/orders`), api("member", `${a}/orders`), api("outsider", `${a}/orders`), api("ownerB", `${b}/orders`),
+    ]);
+    expect(ownerRead.status).toBe(200); expect((await ownerRead.json()).items[0]).toMatchObject({ id: savedOrder.id, buyerName: "測試買家", buyerEmail: "buyer@example.test" });
+    expect(memberRead.status).toBe(403); expect(outsiderRead.status).toBe(404); expect(otherTenantRead.status).toBe(404);
+    const [memberDetail, outsiderDetail, ownerDetail] = await Promise.all([api("member", `${a}/orders/${savedOrder.id}`), api("outsider", `${a}/orders/${savedOrder.id}`), api("ownerA", `${a}/orders/${savedOrder.id}`)]);
+    expect(memberDetail.status).toBe(403); expect(outsiderDetail.status).toBe(404); expect((await ownerDetail.json()).buyerEmail).toBe("buyer@example.test");
+    await api("ownerA", `${a}/products/${product.id}`, "PATCH", { ...productInput("ORDER-1", true), name: "Updated name", price: "999.99", version: 1 });
+    const snapshot = await createEcommerceOrders(db).detail(actors.ownerA, a, savedOrder.id); expect(snapshot.lines[0]).toMatchObject({ productName: "ORDER-1 product", unitPrice: "120.50" });
+    const audit = await db.tenantAudit.findFirstOrThrow({ where: { tenantId: a, targetId: savedOrder.id, action: "ecommerce.order.submitted" } });
+    expect(audit.actorId).toBeNull(); expect(JSON.stringify(audit)).not.toContain("buyer@example.test");
+    expect(store.id).toBe(savedOrder.storeId);
+  });
+  it("rejects unavailable or cross-store goods, invalid quantities and origins, and rolls failed order transactions back", async () => {
+    const slug = `checkout-${randomUUID()}`; await api("ownerA", `${a}/store`, "POST", storeInput(slug));
+    const published = await (await api("ownerA", `${a}/products`, "POST", productInput("LIVE-C", true))).json();
+    const draft = await (await api("ownerA", `${a}/products`, "POST", productInput("DRAFT-C", false))).json();
+    const foreignSlug = `checkout-${randomUUID()}`; await api("ownerB", `${b}/store`, "POST", storeInput(foreignSlug));
+    const foreign = await (await api("ownerB", `${b}/products`, "POST", productInput("FOREIGN-C", true))).json();
+    const call = (body: unknown, origin = baseURL) => handlePublicCheckout(new Request(`${baseURL}/api/shop/${slug}/checkout`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "Idempotency-Key": `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}` }, body: JSON.stringify(body) }), slug);
+    for (const quantity of [0, 100, 1.2, "1"]) expect((await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity }] })).status).toBe(400);
+    for (const id of [draft.id, foreign.id, randomUUID()]) expect((await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: id, quantity: 1 }] })).status).toBe(409);
+    expect((await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity: 1 }, { productId: published.id, quantity: 1 }] })).status).toBe(400);
+    expect((await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity: 1 }] }, "https://attacker.example")).status).toBe(403);
+    const count = await db.ecomOrder.count({ where: { tenantId: a } });
+    await expect(createEcommerceOrders(db).checkout(slug, `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`, { buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity: 1 }] }, "invalid-uuid")).rejects.toThrow();
+    expect(await db.ecomOrder.count({ where: { tenantId: a } })).toBe(count);
+    const orderResponse = await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity: 1 }] }); const order = await orderResponse.json();
+    const saved = await db.ecomOrder.findFirstOrThrow({ where: { tenantId: a, orderNumber: order.orderNumber }, include: { lines: true } });
+    await expect(db.ecomOrder.update({ where: { id: saved.id }, data: { totalAmount: "0" } })).rejects.toThrow();
+    await expect(db.ecomOrderLine.update({ where: { id: saved.lines[0].id }, data: { productName: "tampered" } })).rejects.toThrow();
+    await expect(db.ecomOrderLine.create({ data: { tenantId: a, storeId: saved.storeId, orderId: saved.id, productId: published.id, productCode: "LIVE-C", productName: "Extra line", quantity: 1, unitPrice: "1.00", lineTotal: "1.00" } })).rejects.toThrow();
+    const liveStore = await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } });
+    await expect(db.ecomOrder.create({ data: { tenantId: a, storeId: liveStore.id, orderNumber: `ECOM-${randomUUID()}`, currency: liveStore.currency, buyerName: "Guest", buyerEmail: "g@example.test", totalAmount: "10.00", idempotencyKeyHash: randomUUID().replaceAll("-", "").padEnd(64, "0"), payloadHash: randomUUID().replaceAll("-", "").padEnd(64, "0") } })).rejects.toThrow();
+    const store = await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } });
+    const raceProduct = await (await api("ownerA", `${a}/products`, "POST", productInput("RACE-C", true))).json();
+    let acquired!: () => void, release!: () => void;
+    const locked = new Promise<void>(resolve => { acquired = resolve; }); const resume = new Promise<void>(resolve => { release = resolve; });
+    const unpublish = db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM tenants WHERE id = ${a}::uuid FOR UPDATE`;
+      acquired(); await resume;
+      await tx.ecomProduct.update({ where: { tenantId_storeId_id: { tenantId: a, storeId: store.id, id: raceProduct.id } }, data: { isPublished: false, version: { increment: 1 } } });
+    });
+    await locked;
+    const waitingCheckout = createEcommerceOrders(db).checkout(slug, `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`, { buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: raceProduct.id, quantity: 1 }] });
+    release(); await unpublish;
+    await expect(waitingCheckout).rejects.toMatchObject({ status: 409, code: "products_unavailable" });
+    await db.ecomStore.update({ where: { tenantId: a }, data: { isActive: false, version: { increment: 1 } } });
+    expect((await call({ buyerName: "Guest", buyerEmail: "g@example.test", lines: [{ productId: published.id, quantity: 1 }] })).status).toBe(404);
+    expect(store.isActive).toBe(true);
   });
 });

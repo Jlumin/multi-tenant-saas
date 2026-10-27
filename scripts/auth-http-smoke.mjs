@@ -136,9 +136,24 @@ try {
   assert.equal(publicCatalog.status, 200); assert.equal(publicCatalog.headers.get("cache-control"), "no-store");
   const publicData = await publicCatalog.json(); assert.equal(publicData.products.length, 1); assert.equal(publicData.products[0].code, "HTTP-LIVE");
   assert.equal((await fetch(`${base}/shop/${storeSlug}`)).status, 200);
+  assert.equal((await fetch(`${base}/ecommerce/orders`)).status, 200);
+  const checkoutKey = `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`;
+  const checkoutBody = { buyerName: "Fictional guest", buyerEmail: "guest@example.test", lines: [{ productId: publicData.products[0].id, quantity: 2 }] };
+  async function checkout(body = checkoutBody) {
+    return fetch(`${base}/api/shop/${storeSlug}/checkout`, { method: "POST", headers: { Origin: base, "Content-Type": "application/json", "Idempotency-Key": checkoutKey }, body: JSON.stringify(body) });
+  }
+  const orderResponse = await checkout(); assert.equal(orderResponse.status, 201);
+  const order = await orderResponse.json(); assert.equal(order.status, "submitted"); assert.equal(order.totalAmount, "241.00");
+  assert.equal("buyerEmail" in order, false); assert.equal("tenantId" in order, false); assert.equal("storeId" in order, false);
+  assert.equal((await checkout()).status, 200);
+  assert.equal((await checkout({ ...checkoutBody, totalAmount: "0.01" })).status, 400);
+  const adminOrders = await request(`${base}/api/ecommerce/${tenantId}/orders`); assert.equal(adminOrders.status, 200);
+  const savedOrder = (await adminOrders.json()).items[0]; assert.equal(savedOrder.buyerEmail, "guest@example.test");
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/orders/${savedOrder.id}`)).status, 200);
   jar.clear(); for (const [key, value] of inviteeCookies) jar.set(key, value);
   assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`)).status, 200);
   assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "MEMBER-TRY", name: "Denied", description: "", price: "1", isPublished: false })).status, 403);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/orders`)).status, 403);
   jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   const wms = `${base}/api/wms/${tenantId}`;
   const warehouseResponse = await request(`${wms}/warehouses`, { code: "HTTP-SITE", name: "Fictional HTTP site" });
@@ -197,7 +212,7 @@ try {
   assert.equal((await (await request(projectsURL)).json()).total, 0);
   assert.equal((await request("sign-out", {})).status, 200);
   assert.equal(await (await request("get-session")).json(), null);
-  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, E-Commerce store/catalog/public-only-published browsing and Member denial, WMS masters/integer conversion/stock posting/balance/movement filters, negative-stock rejection, tenant isolation, version conflicts, soft delete and logout.");
+  console.log("PASS: real Next HTTP + PostgreSQL + SMTP signup/verification, provisioning, invitation/role checks, Project CRUD, E-Commerce store/catalog/guest checkout/server pricing/idempotency/Owner-only order reads/Member denial, WMS masters/integer conversion/stock posting/balance/movement filters, negative-stock rejection, tenant isolation, version conflicts, soft delete and logout.");
 } catch {
   console.error("Auth HTTP smoke failed. Check local PostgreSQL/Mailpit/configuration. Tokens, messages and credentials suppressed.");
   process.exitCode = 1;

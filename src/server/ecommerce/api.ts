@@ -4,6 +4,7 @@ import { readAuthConfig } from "../auth/config";
 import { getDatabase } from "../platform";
 import { TenantError } from "../tenancy/service";
 import { createEcommerce } from "./service";
+import { createEcommerceOrders } from "./orders";
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 async function payload(request: Request, fields: string[]) {
@@ -25,6 +26,7 @@ export async function handleEcommerce(request: Request): Promise<Response> {
     const url = new URL(request.url); const limit = Number(url.searchParams.get("limit") ?? 20); const offset = Number(url.searchParams.get("offset") ?? 0);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0 || offset > 100000) throw new TenantError(400, "invalid_pagination");
     if (resource === "store" && !id && request.method === "GET") result = await service.store(session.user, tenantId);
+    else if (resource === "orders" && request.method === "GET") result = id ? await createEcommerceOrders(getDatabase()).detail(session.user, tenantId, id) : await createEcommerceOrders(getDatabase()).list(session.user, tenantId, limit, offset);
     else if (resource === "store" && !id && request.method === "POST") {
       const data = await payload(request, ["name", "slug", "currency"]);
       if (typeof data.name !== "string" || typeof data.slug !== "string" || typeof data.currency !== "string") throw new TenantError(400, "invalid_payload");

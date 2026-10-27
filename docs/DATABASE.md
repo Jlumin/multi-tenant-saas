@@ -1,8 +1,8 @@
 # 資料庫設計
 
-狀態：邏輯模型提案；沒有已執行 schema 或 migration。2026-10-26。
+狀態：下方初始邏輯模型為提案；實際 schema 與已執行 migration 以本文件的版本化補充及 `prisma/schema.prisma` 為準。2026-10-28。
 
-以上是原提案起點。現在 M0/AUTH-001/TENANCY-001/PROJECTS-001/WMS-001 已有五份 versioned migrations；WMS-002 將新增第六份。實際模型以 prisma/schema.prisma 與 ADR 0002–0006 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit，業務資源為 projects 與 WMS 主檔、文件及庫存流水。Project 採 tenant/creator 複合 FK、version 與 soft delete，詳見 [Project 資料與交易](PROJECTS.md)；WMS 主檔詳見 [ADR 0005](adr/0005-wms-masters.md)，庫存交易與餘額由流水同交易維護，詳見 [ADR 0006](adr/0006-wms-stock-posting.md)。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。下方表格保留最初邏輯提案，不代表實際 SQL 表名。
+以上是原提案起點。M0、AUTH-001、TENANCY-001、PROJECTS-001、WMS-001–005 與 ECOM-001/002 已有 versioned migrations。實際模型以 prisma/schema.prisma 與 ADR 0002–0006 為準：身分為 auth_*、成員為 memberships、邀請為 invitations、平台審計為 tenant_audit，業務資源為 projects、WMS 主檔／文件／庫存流水及 E-Commerce 店面／商品／訂單快照。Project 採 tenant/creator 複合 FK、version 與 soft delete，詳見 [Project 資料與交易](PROJECTS.md)；WMS 主檔與庫存交易分別見 [ADR 0005](adr/0005-wms-masters.md) 與 [ADR 0006](adr/0006-wms-stock-posting.md)。原 auth_subject 由 Account(providerId,accountId) 支援多來源，見 ADR 0002。下方表格保留最初邏輯提案，不代表實際 SQL 表名。
 
 ## 模型
 | 表 | 主要欄位 | 約束／用途 |
@@ -15,9 +15,11 @@
 
 使用者可屬於多個租戶；角色屬於 membership，不能放在 users 作全域 tenant role。
 時間欄位使用 PostgreSQL timestamptz，應用以 UTC 處理。
-M0 僅需最小 tenants 表作 migration smoke test；其他模型於後續 Issue 實作，避免假裝已完成身分與授權。
+M0 僅需最小 tenants 表作 migration smoke test；後續模型依對應 Issue 版本化提交。
 
 ECOM-001 新增 `ecom_stores` 與 `ecom_products`。一店／租戶及公開 slug 均有唯一約束；商品以 `(tenant_id, store_id)`、建立者 membership 複合外鍵限制關聯；價格採 `numeric(12,2)`，資料庫檢查非負與代碼／版本格式。觸發器保留列、固定 slug 與 ownership，更新須遞增 version。商品目錄不外鍵連 WMS，符合模組資料所有權。
+
+ECOM-002 新增 `ecom_orders` 與 `ecom_order_lines`。訂單與明細皆帶 `tenant_id`／`store_id`；明細以複合外鍵同時參照所屬訂單與商品，避免跨租戶／跨店關聯。商品代碼、名稱、單價、數量、明細金額、幣別與總額在下單當下保存；數量限制 1–99，金額採 `numeric(12,2)`。資料庫 trigger 拒絕修改或刪除訂單與明細、拒絕事後新增明細，並於交易提交時檢查至少一筆明細、總額及店面幣別一致。修正需後續另定沖銷／狀態流程。高熵冪等鍵保存 SHA-256 摘要，含個資 payload 保存伺服器秘密 HMAC 摘要。訪客姓名及 email 目前明文存於訂單表；保存期限尚未核定，功能限本機／測試，不得視為正式營運就緒。下單、明細、總額與匿名 metadata audit 同一交易提交；Owner 才能查看本租戶訂單。
 
 ## 隔離與完整性
 - 所有業務資料 tenant_id NOT NULL，索引以 tenant_id 起始以支援 scoped queries。

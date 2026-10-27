@@ -35,6 +35,8 @@ E-Commerce 需求與候選分期見 [ECOMMERCE-REQUIREMENTS.md](ECOMMERCE-REQUIR
 
 ECOM-001 以 `ecom_stores`、`ecom_products` 作為 E-Commerce 私有表；Owner 寫入，Member 讀取，公開讀取僅依全域 slug 查找啟用店面及上架商品。公開路由不接受 tenantId。此目錄 slice 不建立 WMS SKU 外鍵或跨模組寫入。細節與暫定政策見 [ECOMMERCE-REQUIREMENTS.md](ECOMMERCE-REQUIREMENTS.md)。
 
+ECOM-002 延伸至 E-Commerce 自有 `ecom_orders`／`ecom_order_lines`。公開 checkout 僅接受姓名/email、商品 ID/數量與高熵冪等鍵；服務端依 slug 重查啟用店面及上架商品，用 Decimal 重算價格並同交易寫入快照和匿名 metadata audit。checkout 與 Owner 商品／店面更新共用租戶列鎖，避免下架競態。Owner API 依已驗證 session、membership、role 與 tenant scope 回傳買家資料；Member、匿名及非成員不能讀訂單。資料庫 trigger 保護訂單快照不可更新／刪除，且只允許隨建立訂單的交易新增明細，提交時驗證總額、幣別與明細一致。購物車僅存 browser localStorage；沒有 WMS 庫存、CRM、付款或配送呼叫。訪客聯絡資料保存政策未定，僅限本機與測試環境。
+
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
 這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。
