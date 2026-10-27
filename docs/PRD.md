@@ -4,6 +4,8 @@
 
 2026-10-26 已確認：登入支援 Google 與電子郵件／密碼；租戶由受信任維運管理員建立，Owner 寄邀請讓成員加入，不提供公開自助建租戶。M0、AUTH-001 與 TENANCY-001 已有 Draft PR，尚未合併或部署；真實 Google 登入已人工確認。邀請寄信真人驗證延後至整體建置完成，追蹤 QA-001 / #8。使用者確認依序做 Project 專案管理、WMS 倉儲、其他模組；M2 Project 規格見 [PROJECTS](PROJECTS.md)。
 
+2026-10-28：在 WMS 之後，先開始整理 E-Commerce 購物網站需求（ECOM-DISCOVERY-001 / #23）；這只確認探索次序，尚未核定 E-Commerce 商業規則、支付、出貨或庫存政策。詳見 [E-Commerce 需求探索](ECOMMERCE-REQUIREMENTS.md)。
+
 ## 已知事實
 儲存庫名稱為 multi-tenant-saas，說明為 Agent for saas system；僅有 README。
 尚無垂直產業、Agent 行為、付費模式、既有使用者或服務等級需求。
@@ -48,4 +50,4 @@ BOOTSTRAP-001 只交付 M0；登入與 CRUD 不應在第一張 Issue 擴張實�
 - secrets 不在版本控制中；授權與隔離有自動化測試。
 
 ## 開放問題
-目標客群、WMS 作業細節及其他模組順序、是否需要 Agent、正式寄信與部署供應商、資料保留政策。Project 已確認為第一個業務資源。
+目標客群、WMS 待人工確認作業細節、E-Commerce 商業與交易政策、後續模組順序、是否需要 Agent、正式寄信與部署供應商、資料保留政策。Project 已確認為第一個業務資源；E-Commerce 是 WMS 之後先進行需求探索的模組，但還不是已核定的實作範圍。
