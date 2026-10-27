@@ -62,8 +62,10 @@ describe("E-Commerce store and catalog with signed sessions and PostgreSQL", () 
   });
   it("isolates tenants, enforces unique slug and product code, and audits atomically", async () => {
     const slug = `shop-${randomUUID()}`; const storeA = await (await api("ownerA", `${a}/store`, "POST", storeInput(slug))).json();
+    const storeB = await (await api("ownerB", `${b}/store`, "POST", storeInput(`shop-${randomUUID()}`))).json();
     expect((await api("ownerB", `${b}/store`, "POST", storeInput(slug))).status).toBe(409);
     const createdProduct = await api("ownerA", `${a}/products`, "POST", productInput("PART-1", true)); expect(createdProduct.status).toBe(201);
+    expect((await api("ownerB", `${b}/products`, "POST", productInput("PART-1"))).status).toBe(201);
     expect((await api("ownerA", `${b}/products`)).status).toBe(404);
     const product = await createdProduct.json();
     expect((await api("ownerA", `${a}/products/${product.id}`)).status).toBe(200);
@@ -78,6 +80,7 @@ describe("E-Commerce store and catalog with signed sessions and PostgreSQL", () 
     expect(await db.ecomProduct.count({ where: { tenantId: a } })).toBe(before);
     const store = await db.ecomStore.findUniqueOrThrow({ where: { tenantId: a } });
     expect((await api("ownerA", `${a}/store`, "PATCH", { name: store.name, currency: "USD", isActive: true, version: store.version })).status).toBe(409);
+    await expect(db.ecomProduct.create({ data: { tenantId: a, storeId: storeB.id, createdById: actors.ownerA.id, code: "BAD-FOREIGN", name: "Foreign store", price: "1.00" } })).rejects.toThrow();
     expect(storeA.slug).toBe(slug);
   });
   it("publicly returns only published products for active store, without tenant selector", async () => {
