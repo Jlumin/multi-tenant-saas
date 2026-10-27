@@ -1,6 +1,6 @@
 # ECOM-002 驗證紀錄
 
-對應 GitHub Issue #26。狀態：本機實作與完整自動驗證通過；Draft PR／GitHub Actions 尚待建立。只適用本機與測試環境，訂單買家姓名／email 保存期限尚未核定。
+對應 GitHub Issue #26。狀態：本機實作、自動驗證與 GitHub Actions 全通過；Draft PR #27 已提出，以 `feat/ecommerce-001` 為 base。只適用本機與測試環境，訂單買家姓名／email 保存期限尚未核定。
 
 ## 實作範圍
 
@@ -43,6 +43,6 @@
 - `npm run test:http`：通過 production HTTP smoke。
 - `npm run test:auth:http`：通過實際 Next + PostgreSQL + Mailpit 流程；包含訪客下單、server 價格、冪等重送、Owner 訂單查詢及 Member 拒絕。
 - 本機 `npm run db:deploy`／`npm run db:status`：通過，為 `multi_tenant_dev` 套用第 12、13 份 additive migrations，狀態 up to date；未 reset 資料庫。
-- GitHub Actions：Draft PR 建立後執行，結果待補。
+- GitHub Actions Draft PR #27 / run #31：PASS；`npm ci`、lint、typecheck、unit、DB validate/smoke、PostgreSQL integration、dev/prod HTTP smoke、production build 及 auth HTTP smoke 全通過。
 
 本機人工瀏覽器試用可用 ECOM-002 專用假資料帳號；不把帳密或 `.env` 寫入 Git。
