@@ -1,6 +1,6 @@
 # WMS 倉儲需求草案
 
-版本 0.4，2026-10-27（Asia/Taipei）。WMS-DISCOVERY-001 / Issue #11。本文整理需求，不代表完整 WMS 已實作或全部商業規則已核定。WMS-001 / Issue #13、WMS-002 / Issue #15、WMS-003 / Issue #17 已提出 Draft PR；WMS-004 / Issue #19 開發中。
+版本 0.4，2026-10-27（Asia/Taipei）。WMS-DISCOVERY-001 / Issue #11。本文整理需求，不代表完整 WMS 已實作或全部商業規則已核定。WMS-001 / Issue #13、WMS-002 / Issue #15、WMS-003 / Issue #17、WMS-004 / Issue #19 均已提出 Draft PR；WMS-004 Actions #18 全綠，人工及產品審查待補。
 
 ## 已確認與待決定
 
