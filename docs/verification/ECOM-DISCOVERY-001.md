@@ -13,7 +13,7 @@
 - `git diff --check`：通過。
 - 新增文件內的相對文件連結：手動確認皆指向此分支存在檔案。
 - 應用 lint、typecheck、test、build：未執行。此次只有 Markdown 需求文件變更，不影響程式碼；沒有將應用測試描述為通過。
-- GitHub Actions：Draft PR 建立後檢查該 PR 的實際狀態，文件-only 修改是否觸發工程 CI 依 workflow 設定確認。
+- GitHub Actions：Draft PR #24，Bootstrap CI run #25：PASS。workflow 對文件-only 分支仍執行完整工程檢查。
 
 ## 尚未核定
 
