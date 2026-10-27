@@ -1,6 +1,6 @@
 ALTER TABLE "wms_documents"
   ADD COLUMN "destination_warehouse_id" UUID,
-  ADD CONSTRAINT "wms_documents_destination_warehouse_fkey"
+  ADD CONSTRAINT "wms_documents_tenant_id_destination_warehouse_id_fkey"
     FOREIGN KEY ("tenant_id", "destination_warehouse_id")
     REFERENCES "wms_warehouses"("tenant_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT "wms_documents_transfer_shape"
@@ -14,16 +14,16 @@ ALTER TABLE "wms_document_lines"
   ADD CONSTRAINT "wms_document_lines_transfer_shape"
     CHECK (("target_warehouse_id" IS NULL) = ("target_location_id" IS NULL));
 ALTER TABLE "wms_document_lines"
-  ADD CONSTRAINT "wms_document_lines_target_document_fkey"
+  ADD CONSTRAINT "wms_document_lines_tenant_id_document_id_target_warehouse__fkey"
     FOREIGN KEY ("tenant_id", "document_id", "target_warehouse_id")
     REFERENCES "wms_documents"("tenant_id", "id", "destination_warehouse_id") ON DELETE RESTRICT ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED,
-  ADD CONSTRAINT "wms_document_lines_target_location_fkey"
+  ADD CONSTRAINT "wms_document_lines_tenant_id_target_warehouse_id_target_lo_fkey"
     FOREIGN KEY ("tenant_id", "target_warehouse_id", "target_location_id")
     REFERENCES "wms_locations"("tenant_id", "warehouse_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED;
 
 DROP INDEX "wms_stock_movements_tenant_id_line_id_key";
 DROP INDEX "wms_stock_movements_tenant_id_document_id_line_id_key";
-CREATE UNIQUE INDEX "wms_stock_movements_tenant_id_document_id_line_id_warehouse_id_location_id_key"
+CREATE UNIQUE INDEX "wms_stock_movements_tenant_id_document_id_line_id_warehouse_key"
   ON "wms_stock_movements"("tenant_id", "document_id", "line_id", "warehouse_id", "location_id");
 
 CREATE OR REPLACE FUNCTION guard_wms_stock_movement() RETURNS trigger LANGUAGE plpgsql AS $$
