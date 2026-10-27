@@ -19,7 +19,7 @@ import { handleStock } from "../../src/server/wms/stock-api";
 
 const baseURL = "http://localhost:3000", dbName = `wms_stock_test_${randomUUID().replaceAll("-", "")}`;
 let admin: pg.Client, db: PrismaClient, created = false;
-let a: string, b: string, productA: string, productB: string, warehouseA: string, warehouseB: string, locationA: string, locationB: string, unitA: string, baseA: string;
+let a: string, b: string, productA: string, productB: string, warehouseA: string, warehouseA2: string, warehouseB: string, locationA: string, locationA2: string, locationB: string, unitA: string, baseA: string;
 let stock: ReturnType<typeof createStock>, masters: ReturnType<typeof createWms>;
 const actors: Record<string, Actor> = {}, cookies: Record<string, string> = {};
 async function api(user: string, path: string, method = "GET", body?: unknown, extra: Record<string, string> = {}) {
@@ -60,8 +60,10 @@ beforeEach(async () => {
   productA = (await masters.create(actors.ownerA, a, { kind: "products" }, { code: "PART-A", name: "Part A", baseUnit: "個" })).id;
   productB = (await masters.create(actors.ownerB, b, { kind: "products" }, { code: "PART-B", name: "Part B", baseUnit: "個" })).id;
   warehouseA = (await masters.create(actors.ownerA, a, { kind: "warehouses" }, { code: "WH-A", name: "Warehouse A" })).id;
+  warehouseA2 = (await masters.create(actors.ownerA, a, { kind: "warehouses" }, { code: "WH-A2", name: "Warehouse A2" })).id;
   warehouseB = (await masters.create(actors.ownerB, b, { kind: "warehouses" }, { code: "WH-B", name: "Warehouse B" })).id;
   locationA = (await db.wmsLocation.findFirstOrThrow({ where: { tenantId: a, warehouseId: warehouseA, isDefault: true } })).id;
+  locationA2 = (await db.wmsLocation.findFirstOrThrow({ where: { tenantId: a, warehouseId: warehouseA2, isDefault: true } })).id;
   locationB = (await db.wmsLocation.findFirstOrThrow({ where: { tenantId: b, warehouseId: warehouseB, isDefault: true } })).id;
   unitA = (await masters.create(actors.ownerA, a, { kind: "units", parentId: productA }, { code: "BOX20", name: "箱", factor: 20 })).id;
   baseA = (await db.wmsProductUnit.findFirstOrThrow({ where: { tenantId: a, productId: productA, isBase: true } })).id;
@@ -122,6 +124,32 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(5);
     expect((await db.wmsDocument.findUniqueOrThrow({ where: { id: outbound.id } })).status).toBe("draft");
   });
+  it("posts cross-warehouse transfers atomically and keeps tenant quantity unchanged", async () => {
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 10); await post(receipt);
+    const response = await api("member", `${a}/documents`, "POST", { type: "transfer", warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 4 }] });
+    expect(response.status).toBe(201); const transfer = await response.json();
+    expect(transfer).toMatchObject({ type: "transfer", status: "draft", destinationWarehouseId: warehouseA2, lines: [{ locationId: locationA, targetWarehouseId: warehouseA2, targetLocationId: locationA2, baseQuantity: 4 }] });
+    expect((await api("member", `${a}/documents/${transfer.id}/post`, "POST", { version: 1 }, { "Idempotency-Key": `member-${randomUUID()}` })).status).toBe(403);
+    const transferKey = `transfer-${randomUUID()}`; await post(transfer, transferKey);
+    await expect(post(transfer, transferKey)).resolves.toMatchObject({ id: transfer.id, status: "posted" });
+    expect(await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).toMatchObject({ quantity: 6 });
+    expect(await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA2, locationId: locationA2 } } })).toMatchObject({ quantity: 4 });
+    expect(await db.wmsStockMovement.findMany({ where: { tenantId: a, documentId: transfer.id }, orderBy: { delta: "asc" } })).toMatchObject([{ delta: -4, warehouseId: warehouseA, locationId: locationA }, { delta: 4, warehouseId: warehouseA2, locationId: locationA2 }]);
+    await expect(post(transfer, `replay-${randomUUID()}`)).rejects.toMatchObject({ code: "document_not_postable" });
+  });
+  it("supports same-warehouse relocation and rejects insufficient or foreign transfer targets", async () => {
+    const physical = await masters.create(actors.ownerA, a, { kind: "locations", parentId: warehouseA }, { code: "A-01", name: "架位 A-01" });
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 5); await post(receipt);
+    const relocation = await stock.createDraft(actors.member, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA, lines: [{ productId: productA, locationId: locationA, targetLocationId: physical.id, unitId: baseA, quantity: 2 }] });
+    await post(relocation);
+    expect(await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).toMatchObject({ quantity: 3 });
+    expect(await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: physical.id } } })).toMatchObject({ quantity: 2 });
+    const lowStock = await stock.createDraft(actors.ownerA, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 10 }] });
+    await expect(post(lowStock)).rejects.toMatchObject({ code: "insufficient_stock" });
+    expect((await db.wmsDocument.findUniqueOrThrow({ where: { id: lowStock.id } })).status).toBe("draft");
+    expect(await api("ownerA", `${a}/documents`, "POST", { type: "transfer", warehouseId: warehouseA, destinationWarehouseId: warehouseB, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationB, unitId: baseA, quantity: 1 }] })).toMatchObject({ status: 404 });
+    expect((await api("ownerA", `${a}/documents`, "POST", { type: "transfer", warehouseId: warehouseA, destinationWarehouseId: warehouseA, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA, unitId: baseA, quantity: 1 }] })).status).toBe(400);
+  });
   it("isolates tenant document, balances, movement lists and parent resources", async () => {
     const docB = await draft("inbound", "ownerB", b, warehouseB, productB, locationB, baseA, 1).catch(() => null);
     expect(docB).toBeNull();
@@ -179,15 +207,17 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     expect(await db.wmsStockMovement.count({ where: { tenantId: a, documentId: doc.id } })).toBe(0);
     expect(await db.wmsStockBalance.count({ where: { tenantId: a } })).toBe(0);
   });
-  it("rolls back posting when PostgreSQL rejects the audit insert", async () => {
-    const doc = await draft();
-    await db.$executeRaw`CREATE FUNCTION wms_test_reject_post_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'wms.inbound.posted' THEN RAISE EXCEPTION 'audit unavailable'; END IF; RETURN NEW; END $$`;
+  it("rolls back both transfer legs and document status when PostgreSQL rejects the audit insert", async () => {
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 6); await post(receipt);
+    const doc = await stock.createDraft(actors.ownerA, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 2 }] });
+    await db.$executeRaw`CREATE FUNCTION wms_test_reject_post_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'wms.transfer.posted' THEN RAISE EXCEPTION 'audit unavailable'; END IF; RETURN NEW; END $$`;
     await db.$executeRaw`CREATE TRIGGER wms_test_reject_post_audit BEFORE INSERT ON tenant_audit FOR EACH ROW EXECUTE FUNCTION wms_test_reject_post_audit()`;
     try {
       await expect(post(doc)).rejects.toThrow();
       expect((await db.wmsDocument.findUniqueOrThrow({ where: { id: doc.id } })).status).toBe("draft");
       expect(await db.wmsStockMovement.count({ where: { tenantId: a, documentId: doc.id } })).toBe(0);
-      expect(await db.wmsStockBalance.count({ where: { tenantId: a } })).toBe(0);
+      expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(6);
+      expect(await db.wmsStockBalance.findUnique({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA2, locationId: locationA2 } } })).toBeNull();
     } finally {
       await db.$executeRaw`DROP TRIGGER wms_test_reject_post_audit ON tenant_audit`;
       await db.$executeRaw`DROP FUNCTION wms_test_reject_post_audit()`;
