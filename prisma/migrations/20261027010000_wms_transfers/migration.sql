@@ -69,13 +69,15 @@ CREATE CONSTRAINT TRIGGER wms_transfer_movement_pair_guard
 CREATE FUNCTION prevent_wms_transfer_target_deactivation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD."is_active" AND NOT NEW."is_active" THEN
-    IF TG_TABLE_NAME = 'wms_warehouses' AND EXISTS (
-      SELECT 1 FROM "wms_documents" d WHERE d."tenant_id" = OLD."tenant_id" AND d."destination_warehouse_id" = OLD."id" AND d."status" = 'draft'
-    ) THEN RAISE EXCEPTION 'Warehouse is used as a draft transfer target' USING ERRCODE = '23514';
-    ELSIF TG_TABLE_NAME = 'wms_locations' AND EXISTS (
-      SELECT 1 FROM "wms_document_lines" l JOIN "wms_documents" d ON d."tenant_id" = l."tenant_id" AND d."id" = l."document_id"
-      WHERE l."tenant_id" = OLD."tenant_id" AND l."target_warehouse_id" = OLD."warehouse_id" AND l."target_location_id" = OLD."id" AND d."status" = 'draft'
-    ) THEN RAISE EXCEPTION 'Location is used as a draft transfer target' USING ERRCODE = '23514';
+    IF TG_TABLE_NAME = 'wms_warehouses' THEN
+      IF EXISTS (
+        SELECT 1 FROM "wms_documents" d WHERE d."tenant_id" = OLD."tenant_id" AND d."destination_warehouse_id" = OLD."id" AND d."status" = 'draft'
+      ) THEN RAISE EXCEPTION 'Warehouse is used as a draft transfer target' USING ERRCODE = '23514'; END IF;
+    ELSIF TG_TABLE_NAME = 'wms_locations' THEN
+      IF EXISTS (
+        SELECT 1 FROM "wms_document_lines" l JOIN "wms_documents" d ON d."tenant_id" = l."tenant_id" AND d."id" = l."document_id"
+        WHERE l."tenant_id" = OLD."tenant_id" AND l."target_warehouse_id" = OLD."warehouse_id" AND l."target_location_id" = OLD."id" AND d."status" = 'draft'
+      ) THEN RAISE EXCEPTION 'Location is used as a draft transfer target' USING ERRCODE = '23514'; END IF;
     END IF;
   END IF;
   RETURN NEW;
