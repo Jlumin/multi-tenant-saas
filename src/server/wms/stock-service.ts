@@ -64,8 +64,8 @@ async function document(tx: Tx, tenantId: string, id: string) {
   if (!result) throw new TenantError(404, "not_found");
   return result;
 }
-function snapshotHash(doc: { id: string; type: WmsDocumentType; warehouseId: string; destinationWarehouseId: string | null; memo: string; lines: Array<{ position: number; productId: string; locationId: string; targetWarehouseId: string | null; targetLocationId: string | null; unitId: string; unitCode: string; unitName: string; baseUnit: string; quantity: number; factor: number; unitVersion: number; baseQuantity: number }> }) {
-  const content = { id: doc.id, type: doc.type, warehouseId: doc.warehouseId, destinationWarehouseId: doc.destinationWarehouseId, memo: doc.memo, lines: doc.lines.map(({ position, productId, locationId, targetWarehouseId, targetLocationId, unitId, unitCode, unitName, baseUnit, quantity: count, factor, unitVersion, baseQuantity }) => ({ position, productId, locationId, targetWarehouseId, targetLocationId, unitId, unitCode, unitName, baseUnit, quantity: count, factor, unitVersion, baseQuantity })) };
+function snapshotHash(doc: { id: string; type: WmsDocumentType; warehouseId: string; destinationWarehouseId: string | null; memo: string; reversalOfId?: string | null; lines: Array<{ position: number; productId: string; locationId: string; targetWarehouseId: string | null; targetLocationId: string | null; unitId: string; unitCode: string; unitName: string; baseUnit: string; quantity: number; factor: number; unitVersion: number; baseQuantity: number; adjustmentDelta?: number | null }> }) {
+  const content = { id: doc.id, type: doc.type, warehouseId: doc.warehouseId, destinationWarehouseId: doc.destinationWarehouseId, reversalOfId: doc.reversalOfId ?? null, memo: doc.memo, lines: doc.lines.map(({ position, productId, locationId, targetWarehouseId, targetLocationId, unitId, unitCode, unitName, baseUnit, quantity: count, factor, unitVersion, baseQuantity, adjustmentDelta }) => ({ position, productId, locationId, targetWarehouseId, targetLocationId, unitId, unitCode, unitName, baseUnit, quantity: count, factor, unitVersion, baseQuantity, adjustmentDelta: adjustmentDelta ?? null })) };
   return createHash("sha256").update(JSON.stringify(content)).digest("hex");
 }
 export function createStock(db: PrismaClient) {
@@ -85,14 +85,16 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => { await requireTenantContext(tx, actor, tenantId); return document(tx, tenantId, id); });
     },
     async createDraft(actor: Actor, tenantId: string, type: WmsDocumentType, input: StockDraftInput, requestId?: string) {
+      if (type !== "inbound" && type !== "outbound" && type !== "transfer" && type !== "opening") throw new TenantError(400, "invalid_type");
       validateLines(input.lines);
       if (typeof input.warehouseId !== "string") throw new TenantError(400, "invalid_payload");
       const description = memo(input.memo);
+      if (type === "opening" && !description) throw new TenantError(400, "invalid_memo");
       return db.$transaction(async tx => {
-        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, type === "opening");
         if (type === "transfer" ? typeof input.destinationWarehouseId !== "string" : input.destinationWarehouseId !== undefined) throw new TenantError(400, "invalid_payload");
         const lines = await prepareLines(tx, tenantId, input.warehouseId, input.lines, input.destinationWarehouseId);
-        const id = randomUUID(), prefix = type === "inbound" ? "IN" : type === "outbound" ? "OUT" : "TR", number = `${prefix}-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const id = randomUUID(), prefix = type === "inbound" ? "IN" : type === "outbound" ? "OUT" : type === "transfer" ? "TR" : "OPEN", number = `${prefix}-${randomUUID().slice(0, 8).toUpperCase()}`;
         await tx.wmsDocument.create({ data: { id, tenantId, warehouseId: input.warehouseId, destinationWarehouseId: input.destinationWarehouseId, number, type, memo: description, createdById: actor.id } });
         await tx.wmsDocumentLine.createMany({ data: lines.map(line => ({ ...line, tenantId, documentId: id, warehouseId: input.warehouseId })) });
         await recordTenantEvent(tx, tenantId, actor.id, `wms.${type}.draft_created`, id, requestId);
@@ -106,6 +108,10 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => {
         await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
         const current = await document(tx, tenantId, id);
+        if (current.type === "opening") {
+          await requireTenantContext(tx, actor, tenantId, true);
+          if (description !== undefined && !description) throw new TenantError(400, "invalid_memo");
+        }
         if (current.status !== "draft") throw new TenantError(409, "document_not_editable");
         if (current.version !== version) throw new TenantError(409, "version_conflict");
         const destinationWarehouseId = input.destinationWarehouseId ?? current.destinationWarehouseId ?? undefined;
@@ -126,6 +132,7 @@ export function createStock(db: PrismaClient) {
       return db.$transaction(async tx => {
         await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId);
         const current = await document(tx, tenantId, id);
+        if (current.type === "opening") await requireTenantContext(tx, actor, tenantId, true);
         if (current.status !== "draft") throw new TenantError(409, "document_not_cancellable");
         if (current.version !== version) throw new TenantError(409, "version_conflict");
         await tx.wmsDocument.update({ where: { tenantId_id: { tenantId, id } }, data: { status: "cancelled", version: { increment: 1 } } });
@@ -149,6 +156,7 @@ export function createStock(db: PrismaClient) {
         const warehouse = await tx.wmsWarehouse.findFirst({ where: { tenantId, id: current.warehouseId, isActive: true } });
         if (!warehouse) throw new TenantError(409, "master_inactive");
         if (current.type === "transfer" && (!current.destinationWarehouseId || !await tx.wmsWarehouse.findFirst({ where: { tenantId, id: current.destinationWarehouseId, isActive: true } }))) throw new TenantError(409, "master_inactive");
+        if (current.type === "adjustment" && !current.reversalOfId) throw new TenantError(409, "invalid_adjustment");
         const pending = new Map<string, number>();
         const effects: Array<{ line: typeof current.lines[number]; warehouseId: string; locationId: string; delta: number }> = [];
         for (const line of current.lines) {
@@ -159,9 +167,10 @@ export function createStock(db: PrismaClient) {
           ]);
           if (!product || !unit || !location) throw new TenantError(409, "master_inactive");
           if (unit.factor !== line.factor || unit.version !== line.unitVersion || product.baseUnit !== line.baseUnit || line.quantity * line.factor !== line.baseQuantity) throw new TenantError(409, "unit_changed");
+          if (current.type === "opening" && await tx.wmsStockMovement.count({ where: { tenantId, productId: line.productId, warehouseId: current.warehouseId, locationId: line.locationId } })) throw new TenantError(409, "opening_not_empty");
           const changes = current.type === "transfer"
             ? [{ warehouseId: current.warehouseId, locationId: line.locationId, delta: -line.baseQuantity }, { warehouseId: line.targetWarehouseId!, locationId: line.targetLocationId!, delta: line.baseQuantity }]
-            : [{ warehouseId: current.warehouseId, locationId: line.locationId, delta: current.type === "inbound" ? line.baseQuantity : -line.baseQuantity }];
+            : [{ warehouseId: current.warehouseId, locationId: line.locationId, delta: current.type === "inbound" || current.type === "opening" ? line.baseQuantity : current.type === "adjustment" ? line.adjustmentDelta ?? 0 : -line.baseQuantity }];
           if (current.type === "transfer") {
             if (!current.destinationWarehouseId || line.targetWarehouseId !== current.destinationWarehouseId || !line.targetLocationId) throw new TenantError(409, "invalid_transfer");
             const target = await tx.wmsLocation.findFirst({ where: { tenantId, warehouseId: current.destinationWarehouseId, id: line.targetLocationId, isActive: true } });
@@ -191,6 +200,63 @@ export function createStock(db: PrismaClient) {
         await tx.wmsPostingKey.create({ data: { tenantId, key, documentId: id, payloadHash: hash } });
         await recordTenantEvent(tx, tenantId, actor.id, `wms.${current.type}.posted`, id, requestId);
         return document(tx, tenantId, id);
+      });
+    },
+    async reverse(actor: Actor, tenantId: string, id: string, reason: unknown, key: string, requestId: string) {
+      const description = memo(reason);
+      if (!description) throw new TenantError(400, "invalid_reason");
+      if (!/^[A-Za-z0-9._:-]{8,128}$/.test(key)) throw new TenantError(400, "invalid_idempotency_key");
+      return db.$transaction(async tx => {
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, true);
+        const original = await document(tx, tenantId, id);
+        if (original.status !== "posted" || original.reversalOfId) throw new TenantError(409, "document_not_reversible");
+        const existing = await tx.wmsDocument.findUnique({ where: { tenantId_reversalOfId: { tenantId, reversalOfId: id } }, include: view });
+        if (existing) {
+          const previous = await tx.wmsPostingKey.findUnique({ where: { tenantId_key: { tenantId, key } } });
+          if (existing.status === "posted" && previous?.documentId === existing.id && previous.payloadHash === snapshotHash(existing)) return existing;
+          throw new TenantError(409, "already_reversed");
+        }
+        const type: WmsDocumentType = original.type === "inbound" || original.type === "opening" ? "outbound" : original.type === "outbound" ? "inbound" : original.type;
+        const warehouseId = original.type === "transfer" ? original.destinationWarehouseId : original.warehouseId;
+        const destinationWarehouseId = original.type === "transfer" ? original.warehouseId : undefined;
+        if (!warehouseId) throw new TenantError(409, "invalid_transfer");
+        const reversedLines = original.lines.map(line => ({
+          ...line,
+          warehouseId,
+          locationId: original.type === "transfer" ? line.targetLocationId as string : line.locationId,
+          targetWarehouseId: original.type === "transfer" ? original.warehouseId : null,
+          targetLocationId: original.type === "transfer" ? line.locationId : null,
+          adjustmentDelta: original.type === "adjustment" ? -(line.adjustmentDelta ?? 0) : null,
+        }));
+        const reversalId = randomUUID(), postedAt = new Date(), number = `REV-${randomUUID().slice(0, 8).toUpperCase()}`;
+        await tx.wmsDocument.create({ data: { id: reversalId, tenantId, warehouseId, destinationWarehouseId, reversalOfId: id, number, type, status: "posted", memo: `沖銷 ${original.number}：${description}`.slice(0, 500), createdById: actor.id, postedById: actor.id, postedAt } });
+        const createdLines = await Promise.all(reversedLines.map((line, index) => tx.wmsDocumentLine.create({ data: { tenantId, documentId: reversalId, warehouseId, productId: line.productId, locationId: line.locationId, targetWarehouseId: line.targetWarehouseId, targetLocationId: line.targetLocationId, unitId: line.unitId, unitCode: line.unitCode, unitName: line.unitName, baseUnit: line.baseUnit, quantity: line.quantity, factor: line.factor, unitVersion: line.unitVersion, baseQuantity: line.baseQuantity, adjustmentDelta: line.adjustmentDelta, position: index + 1 } })));
+        const pending = new Map<string, number>(), effects: Array<{ line: typeof createdLines[number]; warehouseId: string; locationId: string; delta: number }> = [];
+        for (const line of createdLines) {
+          const [product, unit, location] = await Promise.all([
+            tx.wmsProduct.findFirst({ where: { tenantId, id: line.productId, isActive: true } }),
+            tx.wmsProductUnit.findFirst({ where: { tenantId, productId: line.productId, id: line.unitId, isActive: true } }),
+            tx.wmsLocation.findFirst({ where: { tenantId, warehouseId: line.warehouseId, id: line.locationId, isActive: true } }),
+          ]);
+          if (!product || !unit || !location) throw new TenantError(409, "master_inactive");
+          const changes = type === "transfer"
+            ? [{ warehouseId, locationId: line.locationId, delta: -line.baseQuantity }, { warehouseId: destinationWarehouseId as string, locationId: line.targetLocationId as string, delta: line.baseQuantity }]
+            : [{ warehouseId, locationId: line.locationId, delta: type === "inbound" ? line.baseQuantity : type === "adjustment" ? line.adjustmentDelta ?? 0 : -line.baseQuantity }];
+          if (type === "transfer" && !await tx.wmsLocation.findFirst({ where: { tenantId, warehouseId: destinationWarehouseId as string, id: line.targetLocationId as string, isActive: true } })) throw new TenantError(409, "master_inactive");
+          for (const change of changes) {
+            const balanceKey = `${line.productId}:${change.warehouseId}:${change.locationId}`;
+            const balance = pending.get(balanceKey) ?? (await tx.wmsStockBalance.findUnique({ where: { tenantId_productId_warehouseId_locationId: { tenantId, productId: line.productId, warehouseId: change.warehouseId, locationId: change.locationId } } }))?.quantity ?? 0;
+            const next = balance + change.delta;
+            if (next < 0) throw new TenantError(409, "insufficient_stock");
+            if (next > MAX) throw new TenantError(409, "stock_overflow");
+            pending.set(balanceKey, next); effects.push({ line, ...change });
+          }
+        }
+        for (const effect of effects) await tx.wmsStockMovement.create({ data: { tenantId, documentId: reversalId, lineId: effect.line.id, productId: effect.line.productId, warehouseId: effect.warehouseId, locationId: effect.locationId, delta: effect.delta, actorId: actor.id, requestId } });
+        const reversed = await document(tx, tenantId, reversalId), hash = snapshotHash(reversed);
+        await tx.wmsPostingKey.create({ data: { tenantId, key, documentId: reversalId, payloadHash: hash } });
+        await recordTenantEvent(tx, tenantId, actor.id, `wms.${original.type}.reversed`, reversalId, requestId);
+        return reversed;
       });
     },
     async balances(actor: Actor, tenantId: string, filter: { productId?: string; warehouseId?: string; locationId?: string }, limit: number, offset: number) {

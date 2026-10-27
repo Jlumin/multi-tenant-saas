@@ -3,38 +3,40 @@ datasource db {
 }
 
 model Tenant {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  isActive  Boolean  @default(true) @map("is_active")
-  memberships Membership[]
-  invitations Invitation[]
-  auditEvents TenantAudit[]
-  projects Project[]
-  wmsProducts WmsProduct[]
-  wmsWarehouses WmsWarehouse[]
-  wmsDocuments WmsDocument[]
-  wmsBalances WmsStockBalance[]
-  wmsMovements WmsStockMovement[]
-  wmsPostingKeys WmsPostingKey[]
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  slug              String             @unique
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  isActive          Boolean            @default(true) @map("is_active")
+  memberships       Membership[]
+  invitations       Invitation[]
+  auditEvents       TenantAudit[]
+  projects          Project[]
+  wmsProducts       WmsProduct[]
+  wmsWarehouses     WmsWarehouse[]
+  wmsDocuments      WmsDocument[]
+  wmsStockCounts    WmsStockCount[]
+  wmsOpeningEntries WmsOpeningEntry[]
+  wmsBalances       WmsStockBalance[]
+  wmsMovements      WmsStockMovement[]
+  wmsPostingKeys    WmsPostingKey[]
 
   @@map("tenants")
 }
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
-
 model User {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false) @map("email_verified")
+  email         String        @unique
+  emailVerified Boolean       @default(false) @map("email_verified")
   image         String?
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   sessions      Session[]
   accounts      Account[]
   memberships   Membership[]
@@ -97,15 +99,15 @@ enum MembershipRole {
 }
 
 model Membership {
-  tenantId String @map("tenant_id") @db.Uuid
-  userId String @map("user_id") @db.Uuid
-  role MembershipRole @default(member)
-  isActive Boolean @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tenantId    String         @map("tenant_id") @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  role        MembershipRole @default(member)
+  isActive    Boolean        @default(true) @map("is_active")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   invitations Invitation[]
-  projects Project[]
+  projects    Project[]
 
   @@id([tenantId, userId])
   @@index([userId, isActive])
@@ -113,17 +115,17 @@ model Membership {
 }
 
 model Project {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  name String @db.VarChar(120)
-  description String @default("") @db.VarChar(2000)
-  createdBy String @map("created_by") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  version Int @default(1)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  creator Membership @relation(fields: [tenantId, createdBy], references: [tenantId, userId], onDelete: Restrict)
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @map("tenant_id") @db.Uuid
+  name        String     @db.VarChar(120)
+  description String     @default("") @db.VarChar(2000)
+  createdBy   String     @map("created_by") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  version     Int        @default(1)
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz(3)
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator     Membership @relation(fields: [tenantId, createdBy], references: [tenantId, userId], onDelete: Restrict)
 
   @@unique([tenantId, id])
   @@index([tenantId, deletedAt, createdAt, id])
@@ -131,53 +133,55 @@ model Project {
 }
 
 model Invitation {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  createdById String @map("created_by_id") @db.Uuid
-  email String
-  role MembershipRole @default(member)
-  tokenHash String @unique @map("token_hash") @db.Char(64)
-  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
-  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(3)
-  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  creator Membership @relation(fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  createdById String         @map("created_by_id") @db.Uuid
+  email       String
+  role        MembershipRole @default(member)
+  tokenHash   String         @unique @map("token_hash") @db.Char(64)
+  expiresAt   DateTime       @map("expires_at") @db.Timestamptz(3)
+  acceptedAt  DateTime?      @map("accepted_at") @db.Timestamptz(3)
+  revokedAt   DateTime?      @map("revoked_at") @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator     Membership     @relation(fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
 
   @@index([tenantId, createdAt])
   @@map("invitations")
 }
 
 model TenantAudit {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  actorId String? @map("actor_id") @db.Uuid
-  action String @db.VarChar(60)
-  targetId String @map("target_id") @db.Uuid
-  requestId String? @map("request_id") @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String   @db.VarChar(60)
+  targetId  String   @map("target_id") @db.Uuid
+  requestId String?  @map("request_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, createdAt])
   @@map("tenant_audit")
 }
 
 model WmsProduct {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  code String @map("sku") @db.VarChar(40)
-  name String @db.VarChar(120)
-  baseUnit String @map("base_unit") @db.VarChar(20)
-  isActive Boolean @default(true) @map("is_active")
-  version Int @default(1)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  units WmsProductUnit[]
-  documentLines WmsDocumentLine[]
-  stockBalances WmsStockBalance[]
-  stockMovements WmsStockMovement[]
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  code            String              @map("sku") @db.VarChar(40)
+  name            String              @db.VarChar(120)
+  baseUnit        String              @map("base_unit") @db.VarChar(20)
+  isActive        Boolean             @default(true) @map("is_active")
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  units           WmsProductUnit[]
+  documentLines   WmsDocumentLine[]
+  stockBalances   WmsStockBalance[]
+  stockMovements  WmsStockMovement[]
+  stockCountLines WmsStockCountLine[]
+  openingEntries  WmsOpeningEntry[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
@@ -186,18 +190,18 @@ model WmsProduct {
 }
 
 model WmsProductUnit {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  productId String @map("product_id") @db.Uuid
-  code String @db.VarChar(40)
-  name String @db.VarChar(120)
-  factor Int
-  isBase Boolean @default(false) @map("is_base")
-  isActive Boolean @default(true) @map("is_active")
-  version Int @default(1)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  product WmsProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  productId     String            @map("product_id") @db.Uuid
+  code          String            @db.VarChar(40)
+  name          String            @db.VarChar(120)
+  factor        Int
+  isBase        Boolean           @default(false) @map("is_base")
+  isActive      Boolean           @default(true) @map("is_active")
+  version       Int               @default(1)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  product       WmsProduct        @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
   documentLines WmsDocumentLine[]
 
   @@unique([tenantId, productId, id])
@@ -207,20 +211,23 @@ model WmsProductUnit {
 }
 
 model WmsWarehouse {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  code String @db.VarChar(40)
-  name String @db.VarChar(120)
-  isActive Boolean @default(true) @map("is_active")
-  version Int @default(1)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  locations WmsLocation[]
-  documents WmsDocument[]
-  destinationDocuments WmsDocument[] @relation("WmsDocumentDestination")
-  stockBalances WmsStockBalance[]
-  stockMovements WmsStockMovement[]
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String             @map("tenant_id") @db.Uuid
+  code                 String             @db.VarChar(40)
+  name                 String             @db.VarChar(120)
+  isActive             Boolean            @default(true) @map("is_active")
+  stockRevision        BigInt             @default(0) @map("stock_revision")
+  version              Int                @default(1)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  locations            WmsLocation[]
+  documents            WmsDocument[]
+  destinationDocuments WmsDocument[]      @relation("WmsDocumentDestination")
+  stockBalances        WmsStockBalance[]
+  stockMovements       WmsStockMovement[]
+  stockCounts          WmsStockCount[]
+  openingEntries       WmsOpeningEntry[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
@@ -229,21 +236,23 @@ model WmsWarehouse {
 }
 
 model WmsLocation {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  warehouseId String @map("warehouse_id") @db.Uuid
-  code String @db.VarChar(40)
-  name String @db.VarChar(120)
-  isDefault Boolean @default(false) @map("is_default")
-  isActive Boolean @default(true) @map("is_active")
-  version Int @default(1)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  warehouse WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
-  documentLines WmsDocumentLine[]
-  targetDocumentLines WmsDocumentLine[] @relation("WmsLineTargetLocation")
-  stockBalances WmsStockBalance[]
-  stockMovements WmsStockMovement[]
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String              @map("tenant_id") @db.Uuid
+  warehouseId         String              @map("warehouse_id") @db.Uuid
+  code                String              @db.VarChar(40)
+  name                String              @db.VarChar(120)
+  isDefault           Boolean             @default(false) @map("is_default")
+  isActive            Boolean             @default(true) @map("is_active")
+  version             Int                 @default(1)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  warehouse           WmsWarehouse        @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  documentLines       WmsDocumentLine[]
+  targetDocumentLines WmsDocumentLine[]   @relation("WmsLineTargetLocation")
+  stockBalances       WmsStockBalance[]
+  stockMovements      WmsStockMovement[]
+  stockCountLines     WmsStockCountLine[]
+  openingEntries      WmsOpeningEntry[]
 
   @@unique([tenantId, warehouseId, id])
   @@unique([tenantId, warehouseId, code])
@@ -255,6 +264,8 @@ enum WmsDocumentType {
   inbound
   outbound
   transfer
+  opening
+  adjustment
 }
 
 enum WmsDocumentStatus {
@@ -264,61 +275,70 @@ enum WmsDocumentStatus {
 }
 
 model WmsDocument {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  warehouseId String @map("warehouse_id") @db.Uuid
-  destinationWarehouseId String? @map("destination_warehouse_id") @db.Uuid
-  number String @db.VarChar(40)
-  type WmsDocumentType
-  status WmsDocumentStatus @default(draft)
-  memo String @default("") @db.VarChar(500)
-  createdById String @map("created_by_id") @db.Uuid
-  postedById String? @map("posted_by_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  postedAt DateTime? @map("posted_at") @db.Timestamptz(3)
-  version Int @default(1)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  warehouse WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
-  destinationWarehouse WmsWarehouse? @relation("WmsDocumentDestination", fields: [tenantId, destinationWarehouseId], references: [tenantId, id], onDelete: Restrict)
-  lines WmsDocumentLine[]
-  targetLines WmsDocumentLine[] @relation("WmsTransferTargetDocument")
-  movements WmsStockMovement[]
-  postingKeys WmsPostingKey[]
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String             @map("tenant_id") @db.Uuid
+  warehouseId            String             @map("warehouse_id") @db.Uuid
+  destinationWarehouseId String?            @map("destination_warehouse_id") @db.Uuid
+  stockCountId           String?            @map("stock_count_id") @db.Uuid
+  reversalOfId           String?            @map("reversal_of_id") @db.Uuid
+  number                 String             @db.VarChar(40)
+  type                   WmsDocumentType
+  status                 WmsDocumentStatus  @default(draft)
+  memo                   String             @default("") @db.VarChar(500)
+  createdById            String             @map("created_by_id") @db.Uuid
+  postedById             String?            @map("posted_by_id") @db.Uuid
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  postedAt               DateTime?          @map("posted_at") @db.Timestamptz(3)
+  version                Int                @default(1)
+  tenant                 Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  warehouse              WmsWarehouse       @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  destinationWarehouse   WmsWarehouse?      @relation("WmsDocumentDestination", fields: [tenantId, destinationWarehouseId], references: [tenantId, id], onDelete: Restrict)
+  stockCount             WmsStockCount?     @relation(fields: [tenantId, stockCountId], references: [tenantId, id], onDelete: Restrict)
+  reversalOf             WmsDocument?       @relation("WmsDocumentReversal", fields: [tenantId, reversalOfId], references: [tenantId, id], onDelete: Restrict)
+  reversal               WmsDocument?       @relation("WmsDocumentReversal")
+  lines                  WmsDocumentLine[]
+  targetLines            WmsDocumentLine[]  @relation("WmsTransferTargetDocument")
+  movements              WmsStockMovement[]
+  postingKeys            WmsPostingKey[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, id, warehouseId])
   @@unique([tenantId, id, destinationWarehouseId])
+  @@unique([tenantId, stockCountId])
+  @@unique([tenantId, reversalOfId])
   @@unique([tenantId, number])
   @@index([tenantId, type, status, createdAt, id])
   @@map("wms_documents")
 }
 
 model WmsDocumentLine {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  documentId String @map("document_id") @db.Uuid
-  warehouseId String @map("warehouse_id") @db.Uuid
-  productId String @map("product_id") @db.Uuid
-  locationId String @map("location_id") @db.Uuid
-  targetWarehouseId String? @map("target_warehouse_id") @db.Uuid
-  targetLocationId String? @map("target_location_id") @db.Uuid
-  unitId String @map("unit_id") @db.Uuid
-  unitCode String @map("unit_code") @db.VarChar(40)
-  unitName String @map("unit_name") @db.VarChar(120)
-  baseUnit String @map("base_unit") @db.VarChar(20)
-  quantity Int
-  factor Int
-  unitVersion Int @map("unit_version")
-  baseQuantity Int @map("base_quantity")
-  position Int
-  document WmsDocument @relation(fields: [tenantId, documentId, warehouseId], references: [tenantId, id, warehouseId], onDelete: Restrict)
-  targetDocument WmsDocument? @relation("WmsTransferTargetDocument", fields: [tenantId, documentId, targetWarehouseId], references: [tenantId, id, destinationWarehouseId], onDelete: Restrict)
-  product WmsProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
-  location WmsLocation @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
-  targetLocation WmsLocation? @relation("WmsLineTargetLocation", fields: [tenantId, targetWarehouseId, targetLocationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
-  unit WmsProductUnit @relation(fields: [tenantId, productId, unitId], references: [tenantId, productId, id], onDelete: Restrict)
-  movements WmsStockMovement[]
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String             @map("tenant_id") @db.Uuid
+  documentId        String             @map("document_id") @db.Uuid
+  warehouseId       String             @map("warehouse_id") @db.Uuid
+  productId         String             @map("product_id") @db.Uuid
+  locationId        String             @map("location_id") @db.Uuid
+  targetWarehouseId String?            @map("target_warehouse_id") @db.Uuid
+  targetLocationId  String?            @map("target_location_id") @db.Uuid
+  unitId            String             @map("unit_id") @db.Uuid
+  unitCode          String             @map("unit_code") @db.VarChar(40)
+  unitName          String             @map("unit_name") @db.VarChar(120)
+  baseUnit          String             @map("base_unit") @db.VarChar(20)
+  quantity          Int
+  factor            Int
+  unitVersion       Int                @map("unit_version")
+  baseQuantity      Int                @map("base_quantity")
+  adjustmentDelta   Int?               @map("adjustment_delta")
+  position          Int
+  document          WmsDocument        @relation(fields: [tenantId, documentId, warehouseId], references: [tenantId, id, warehouseId], onDelete: Restrict)
+  targetDocument    WmsDocument?       @relation("WmsTransferTargetDocument", fields: [tenantId, documentId, targetWarehouseId], references: [tenantId, id, destinationWarehouseId], onDelete: Restrict)
+  product           WmsProduct         @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  location          WmsLocation        @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+  targetLocation    WmsLocation?       @relation("WmsLineTargetLocation", fields: [tenantId, targetWarehouseId, targetLocationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+  unit              WmsProductUnit     @relation(fields: [tenantId, productId, unitId], references: [tenantId, productId, id], onDelete: Restrict)
+  movements         WmsStockMovement[]
+  openingEntry      WmsOpeningEntry?
 
   @@unique([tenantId, documentId, id])
   @@unique([tenantId, documentId, position])
@@ -326,17 +346,89 @@ model WmsDocumentLine {
   @@map("wms_document_lines")
 }
 
+enum WmsStockCountStatus {
+  draft
+  posted
+  stale
+  cancelled
+}
+
+model WmsStockCount {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String              @map("tenant_id") @db.Uuid
+  warehouseId        String              @map("warehouse_id") @db.Uuid
+  number             String              @db.VarChar(40)
+  status             WmsStockCountStatus @default(draft)
+  snapshotRevision   BigInt              @map("snapshot_revision")
+  memo               String              @default("") @db.VarChar(500)
+  createdById        String              @map("created_by_id") @db.Uuid
+  postedById         String?             @map("posted_by_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  postedAt           DateTime?           @map("posted_at") @db.Timestamptz(3)
+  version            Int                 @default(1)
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  warehouse          WmsWarehouse        @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  lines              WmsStockCountLine[]
+  adjustmentDocument WmsDocument?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, id, warehouseId])
+  @@unique([tenantId, number])
+  @@index([tenantId, warehouseId, status, createdAt, id])
+  @@map("wms_stock_counts")
+}
+
+model WmsStockCountLine {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  countId          String        @map("count_id") @db.Uuid
+  warehouseId      String        @map("warehouse_id") @db.Uuid
+  productId        String        @map("product_id") @db.Uuid
+  locationId       String        @map("location_id") @db.Uuid
+  snapshotQuantity Int           @map("snapshot_quantity")
+  countedQuantity  Int?          @map("counted_quantity")
+  reason           String        @default("") @db.VarChar(200)
+  position         Int
+  count            WmsStockCount @relation(fields: [tenantId, countId, warehouseId], references: [tenantId, id, warehouseId], onDelete: Restrict)
+  product          WmsProduct    @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  location         WmsLocation   @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+
+  @@unique([tenantId, countId, id])
+  @@unique([tenantId, countId, productId, warehouseId, locationId])
+  @@unique([tenantId, countId, position])
+  @@index([tenantId, countId, position])
+  @@map("wms_stock_count_lines")
+}
+
+model WmsOpeningEntry {
+  tenantId    String          @map("tenant_id") @db.Uuid
+  productId   String          @map("product_id") @db.Uuid
+  warehouseId String          @map("warehouse_id") @db.Uuid
+  locationId  String          @map("location_id") @db.Uuid
+  documentId  String          @map("document_id") @db.Uuid
+  lineId      String          @map("line_id") @db.Uuid
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product     WmsProduct      @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  warehouse   WmsWarehouse    @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  location    WmsLocation     @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+  line        WmsDocumentLine @relation(fields: [tenantId, documentId, lineId], references: [tenantId, documentId, id], onDelete: Restrict)
+
+  @@id([tenantId, productId, warehouseId, locationId])
+  @@unique([tenantId, documentId, lineId])
+  @@map("wms_opening_entries")
+}
+
 model WmsStockBalance {
-  tenantId String @map("tenant_id") @db.Uuid
-  productId String @map("product_id") @db.Uuid
-  warehouseId String @map("warehouse_id") @db.Uuid
-  locationId String @map("location_id") @db.Uuid
-  quantity Int @default(0)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  product WmsProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
-  warehouse WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
-  location WmsLocation @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+  tenantId    String       @map("tenant_id") @db.Uuid
+  productId   String       @map("product_id") @db.Uuid
+  warehouseId String       @map("warehouse_id") @db.Uuid
+  locationId  String       @map("location_id") @db.Uuid
+  quantity    Int          @default(0)
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product     WmsProduct   @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  warehouse   WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  location    WmsLocation  @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
 
   @@id([tenantId, productId, warehouseId, locationId])
   @@index([tenantId, warehouseId, locationId, productId])
@@ -344,23 +436,23 @@ model WmsStockBalance {
 }
 
 model WmsStockMovement {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  documentId String @map("document_id") @db.Uuid
-  lineId String @map("line_id") @db.Uuid
-  productId String @map("product_id") @db.Uuid
-  warehouseId String @map("warehouse_id") @db.Uuid
-  locationId String @map("location_id") @db.Uuid
-  delta Int
-  actorId String @map("actor_id") @db.Uuid
-  requestId String @map("request_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  document WmsDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
-  line WmsDocumentLine @relation(fields: [tenantId, documentId, lineId], references: [tenantId, documentId, id], onDelete: Restrict)
-  product WmsProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
-  warehouse WmsWarehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
-  location WmsLocation @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  documentId  String          @map("document_id") @db.Uuid
+  lineId      String          @map("line_id") @db.Uuid
+  productId   String          @map("product_id") @db.Uuid
+  warehouseId String          @map("warehouse_id") @db.Uuid
+  locationId  String          @map("location_id") @db.Uuid
+  delta       Int
+  actorId     String          @map("actor_id") @db.Uuid
+  requestId   String          @map("request_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document    WmsDocument     @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
+  line        WmsDocumentLine @relation(fields: [tenantId, documentId, lineId], references: [tenantId, documentId, id], onDelete: Restrict)
+  product     WmsProduct      @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  warehouse   WmsWarehouse    @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  location    WmsLocation     @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
 
   @@unique([tenantId, documentId, lineId, warehouseId, locationId])
   @@index([tenantId, productId, createdAt, id])
@@ -369,13 +461,13 @@ model WmsStockMovement {
 }
 
 model WmsPostingKey {
-  tenantId String @map("tenant_id") @db.Uuid
-  key String @db.VarChar(128)
-  documentId String @map("document_id") @db.Uuid
-  payloadHash String @map("payload_hash") @db.Char(64)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  document WmsDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
+  tenantId    String      @map("tenant_id") @db.Uuid
+  key         String      @db.VarChar(128)
+  documentId  String      @map("document_id") @db.Uuid
+  payloadHash String      @map("payload_hash") @db.Char(64)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document    WmsDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
 
   @@id([tenantId, key])
   @@index([tenantId, documentId])
