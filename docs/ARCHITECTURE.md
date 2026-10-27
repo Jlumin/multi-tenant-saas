@@ -22,6 +22,17 @@ UI 隱藏按鈕不構成授權；所有可直接呼叫的 endpoint 都必須檢�
 資料存取封裝與兩租戶測試是初始控制。PostgreSQL RLS 是待 ADR 評估的額外控制；未實作與測試前不可宣稱已保護資料。
 若採 RLS，須處理連線池、交易範圍 context、migration/service role 繞過風險。
 
+## 業務模組邊界
+
+模組提案與已核定的工程約束如下：
+
+- `wms` 擁有商品主檔／實體庫存與倉儲交易；`ecommerce` 擁有線上商店交易流程；`crm` 擁有會員／客戶關係資料；`hr` 擁有員工／出勤；`restaurant` 同時擁有 QR 點餐與店員 POS。
+- 每個模組維護自己的資料表與寫入權限。E-Commerce 是否引用 WMS SKU、使用 CRM 會員或和 Restaurant 共用部分服務，目前仍是產品與契約待決策事項，不能由模組名稱推定。
+- 跨模組呼叫經由擁有方公開 service／contract；不能直接新增或更新其他模組的表。模組失敗、重試、冪等、事件順序與補償需由各整合 Issue 定義。
+- 這些邊界與五模組 Modular Monolith 規劃一致，不表示各模組資料模型、API 或畫面已實作。
+
+E-Commerce 需求與候選分期見 [ECOMMERCE-REQUIREMENTS.md](ECOMMERCE-REQUIREMENTS.md)。商品目錄與 WMS SKU、買家身份與 CRM、訂單與 Restaurant、支付／物流供應商的 owner 尚未最終核定。
+
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
 這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。
