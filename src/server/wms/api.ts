@@ -45,7 +45,8 @@ export async function handleWms(request: Request): Promise<Response> {
       } else throw new TenantError(405, "method_not_allowed");
     }
     console.info(JSON.stringify({ event: "wms.request", requestId, method: request.method, status }));
-    return Response.json(result, { status, headers });
+    const body = JSON.stringify(result, (_key, value: unknown) => typeof value === "bigint" ? value.toString() : value);
+    return new Response(body, { status, headers: { ...headers, "Content-Type": "application/json; charset=utf-8" } });
   } catch (error) {
     const duplicate = typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
     const status = error instanceof TenantError ? error.status : duplicate ? 409 : error instanceof SyntaxError ? 400 : 503;

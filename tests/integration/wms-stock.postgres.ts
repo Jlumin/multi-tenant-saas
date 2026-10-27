@@ -11,6 +11,7 @@ import { createAuth } from "../../src/server/auth/create-auth";
 import { type Actor } from "../../src/server/tenancy/service";
 import { createWms } from "../../src/server/wms/service";
 import { createStock } from "../../src/server/wms/stock-service";
+import { createStockCounts } from "../../src/server/wms/count-service";
 
 const runtime = vi.hoisted(() => ({ auth: vi.fn(), database: vi.fn() }));
 vi.mock("../../src/server/auth/runtime", () => ({ getAuth: runtime.auth }));
@@ -20,7 +21,7 @@ import { handleStock } from "../../src/server/wms/stock-api";
 const baseURL = "http://localhost:3000", dbName = `wms_stock_test_${randomUUID().replaceAll("-", "")}`;
 let admin: pg.Client, db: PrismaClient, created = false;
 let a: string, b: string, productA: string, productB: string, warehouseA: string, warehouseA2: string, warehouseB: string, locationA: string, locationA2: string, locationB: string, unitA: string, baseA: string;
-let stock: ReturnType<typeof createStock>, masters: ReturnType<typeof createWms>;
+let stock: ReturnType<typeof createStock>, counts: ReturnType<typeof createStockCounts>, masters: ReturnType<typeof createWms>;
 const actors: Record<string, Actor> = {}, cookies: Record<string, string> = {};
 async function api(user: string, path: string, method = "GET", body?: unknown, extra: Record<string, string> = {}) {
   return handleStock(new Request(`${baseURL}/api/wms-stock/${path}`, { method, headers: { "Content-Type": "application/json", Origin: baseURL, ...(cookies[user] ? { Cookie: cookies[user] } : {}), ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
@@ -50,7 +51,7 @@ beforeAll(async () => {
     const response = await auth.api.signInEmail({ body: { email: user.email, password }, headers: new Headers({ Origin: baseURL }), asResponse: true });
     expect(response.status).toBe(200); cookies[name] = response.headers.getSetCookie().map(c => c.split(";")[0]).join("; ");
   }
-  stock = createStock(db); masters = createWms(db);
+  stock = createStock(db); counts = createStockCounts(db); masters = createWms(db);
 });
 beforeEach(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {}); vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -239,5 +240,66 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     const foreign = await api("ownerA", `${a}/balances?productId=${productB}`); expect((await foreign.json()).total).toBe(0);
     await db.membership.update({ where: { tenantId_userId: { tenantId: a, userId: actors.member.id } }, data: { isActive: false } });
     expect((await api("member", `${a}/balances`)).status).toBe(404);
+  });
+  it("permits one opening balance per product location and reverses only when stock allows", async () => {
+    const openingResponse = await api("member", `${a}/documents`, "POST", { type: "opening", warehouseId: warehouseA, memo: "系統啟用", lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 5 }] });
+    expect(openingResponse.status).toBe(201); const opening = await openingResponse.json();
+    await post(opening);
+    const duplicate = await stock.createDraft(actors.ownerA, a, "opening", { warehouseId: warehouseA, lines: [{ productId: productA, locationId: locationA, unitId: baseA, quantity: 1 }] });
+    await expect(post(duplicate)).rejects.toMatchObject({ code: "opening_not_empty" });
+    const sale = await draft("outbound", "ownerA", a, warehouseA, productA, locationA, baseA, 2); await post(sale);
+    await expect(stock.reverse(actors.ownerA, a, opening.id, "期初輸入錯誤", `reversing-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "insufficient_stock" });
+    expect((await db.wmsDocument.findUniqueOrThrow({ where: { id: opening.id } })).status).toBe("posted");
+    const amount = await stock.reverse(actors.ownerA, a, sale.id, "出庫單據錯誤", `reverse-${randomUUID()}`, randomUUID());
+    expect(amount).toMatchObject({ type: "inbound", reversalOfId: sale.id, status: "posted" });
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(5);
+    const key = `reverse-${randomUUID()}`, reversedOpening = await stock.reverse(actors.ownerA, a, opening.id, "撤銷期初", key, randomUUID());
+    await expect(stock.reverse(actors.ownerA, a, opening.id, "撤銷期初", key, randomUUID())).resolves.toMatchObject({ id: reversedOpening.id, status: "posted" });
+    await expect(stock.reverse(actors.ownerA, a, opening.id, "不同原因", `reverse-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "already_reversed" });
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(0);
+  });
+  it("reverses a transfer as a paired opposite transfer without changing tenant totals", async () => {
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 8); await post(receipt);
+    const transfer = await stock.createDraft(actors.ownerA, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 3 }] }); await post(transfer);
+    const reversal = await stock.reverse(actors.ownerA, a, transfer.id, "放錯倉", `reverse-${randomUUID()}`, randomUUID());
+    expect(reversal).toMatchObject({ type: "transfer", warehouseId: warehouseA2, destinationWarehouseId: warehouseA, reversalOfId: transfer.id });
+    expect(await db.wmsStockMovement.count({ where: { tenantId: a, documentId: reversal.id } })).toBe(2);
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(8);
+    expect((await db.wmsStockBalance.findUnique({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA2, locationId: locationA2 } } }))?.quantity).toBe(0);
+    await expect(stock.reverse(actors.member, a, receipt.id, "不可沖銷", `reverse-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "owner_required" });
+    expect((await api("ownerB", `${a}/documents/${transfer.id}/reverse`, "POST", { reason: "跨租戶" }, { "Idempotency-Key": `reverse-${randomUUID()}` })).status).toBe(404);
+  });
+  it("counts a warehouse snapshot, posts only its differences and reverses the adjustment", async () => {
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 10); await post(receipt);
+    const count = await counts.start(actors.member, a, warehouseA, "年度盤點");
+    expect(count).toMatchObject({ status: "draft", snapshotRevision: expect.any(String), lines: [{ snapshotQuantity: 10, countedQuantity: null, product: { code: "PART-A" } }] });
+    await expect(counts.get(actors.ownerB, b, count.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(counts.post(actors.member, a, count.id, count.version, `count-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "owner_required" });
+    const counted = await counts.setLine(actors.member, a, count.id, count.lines[0].id, count.version, 8, "短少兩個");
+    const key = `count-${randomUUID()}`, posted = await counts.post(actors.ownerA, a, count.id, counted.version, key, randomUUID());
+    expect(posted).toMatchObject({ status: "posted", lines: [{ snapshotQuantity: 10, countedQuantity: 8, reason: "短少兩個" }], adjustmentDocument: { status: "posted" } });
+    await expect(counts.post(actors.ownerA, a, count.id, counted.version, key, randomUUID())).resolves.toMatchObject({ status: "posted" });
+    const adjustment = await db.wmsDocument.findFirstOrThrow({ where: { tenantId: a, stockCountId: count.id }, include: { lines: true } });
+    expect(adjustment.lines).toMatchObject([{ adjustmentDelta: -2, baseQuantity: 2 }]);
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(8);
+    const reversal = await stock.reverse(actors.ownerA, a, adjustment.id, "盤點輸入錯誤", `reverse-${randomUUID()}`, randomUUID());
+    expect(reversal.type).toBe("adjustment");
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(10);
+  });
+  it("rejects incomplete counts and marks snapshots stale after any warehouse movement", async () => {
+    const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 4); await post(receipt);
+    const incomplete = await counts.start(actors.ownerA, a, warehouseA);
+    await expect(counts.post(actors.ownerA, a, incomplete.id, incomplete.version, `count-${randomUUID()}`, randomUUID())).rejects.toMatchObject({ code: "count_incomplete" });
+    const count = await counts.setLine(actors.member, a, incomplete.id, incomplete.lines[0].id, incomplete.version, 0);
+    const newer = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 1); await post(newer);
+    const result = await counts.post(actors.ownerA, a, count.id, count.version, `count-${randomUUID()}`, randomUUID());
+    expect(result).toMatchObject({ status: "stale", stale: true });
+    expect(await db.wmsDocument.count({ where: { tenantId: a, type: "adjustment", stockCountId: count.id } })).toBe(0);
+    expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(5);
+    const apiCount = await api("ownerA", `${a}/counts`, "POST", { warehouseId: warehouseA }); expect(apiCount.status).toBe(201); const apiDraft = await apiCount.json();
+    const apiCounted = await api("member", `${a}/counts/${apiDraft.id}/lines/${apiDraft.lines[0].id}`, "PATCH", { version: 1, countedQuantity: 5, reason: "API count" }); expect(apiCounted.status).toBe(200);
+    const apiNewer = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 1); await post(apiNewer);
+    const apiStale = await api("ownerA", `${a}/counts/${apiDraft.id}/post`, "POST", { version: 2 }, { "Idempotency-Key": `count-${randomUUID()}` });
+    expect(apiStale.status).toBe(409); expect((await apiStale.json()).status).toBe("stale");
   });
 });

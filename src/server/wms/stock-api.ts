@@ -4,6 +4,7 @@ import { readAuthConfig } from "../auth/config";
 import { getDatabase } from "../platform";
 import { TenantError } from "../tenancy/service";
 import { createStock } from "./stock-service";
+import { createStockCounts } from "./count-service";
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 async function body(request: Request, allowed: string[]) {
@@ -30,16 +31,16 @@ export async function handleStock(request: Request): Promise<Response> {
     if (request.method !== "GET" && (request.headers.get("origin") !== readAuthConfig().baseURL || request.headers.get("sec-fetch-site") === "cross-site" || !/^application\/json(?:\s*;|$)/i.test(request.headers.get("content-type") ?? ""))) throw new TenantError(403, "invalid_origin");
     const url = new URL(request.url), path = url.pathname.replace(/^\/api\/wms-stock\/?/, "").split("/").filter(Boolean);
     const [tenantId, resource, id, action] = path;
-    if (!tenantId || !uuid(tenantId) || path.length < 2 || path.length > 4 || (id && !uuid(id)) || !["documents", "balances", "movements"].includes(resource)) throw new TenantError(404, "not_found");
-    const { limit, offset } = page(url), service = createStock(getDatabase());
+    if (!tenantId || !uuid(tenantId) || path.length < 2 || path.length > 5 || (id && !uuid(id)) || !["documents", "balances", "movements", "counts"].includes(resource)) throw new TenantError(404, "not_found");
+    const { limit, offset } = page(url), database = getDatabase(), service = createStock(database), counts = createStockCounts(database);
     let result: unknown, status = 200;
     if (resource === "documents" && path.length === 2 && request.method === "GET") {
       const type = url.searchParams.get("type"), state = url.searchParams.get("status");
-      if (type && !["inbound", "outbound", "transfer"].includes(type) || state && !["draft", "posted", "cancelled"].includes(state)) throw new TenantError(400, "invalid_filter");
-      result = await service.listDocuments(session.user, tenantId, { ...(type ? { type: type as "inbound" | "outbound" | "transfer" } : {}), ...(state ? { status: state as "draft" | "posted" | "cancelled" } : {}) }, limit, offset);
+      if (type && !["inbound", "outbound", "transfer", "opening", "adjustment"].includes(type) || state && !["draft", "posted", "cancelled"].includes(state)) throw new TenantError(400, "invalid_filter");
+      result = await service.listDocuments(session.user, tenantId, { ...(type ? { type: type as "inbound" | "outbound" | "transfer" | "opening" | "adjustment" } : {}), ...(state ? { status: state as "draft" | "posted" | "cancelled" } : {}) }, limit, offset);
     } else if (resource === "documents" && path.length === 2 && request.method === "POST") {
       const data = await body(request, ["type", "warehouseId", "destinationWarehouseId", "memo", "lines"]);
-      if (data.type !== "inbound" && data.type !== "outbound" && data.type !== "transfer") throw new TenantError(400, "invalid_type");
+      if (data.type !== "inbound" && data.type !== "outbound" && data.type !== "transfer" && data.type !== "opening") throw new TenantError(400, "invalid_type");
       result = await service.createDraft(session.user, tenantId, data.type, { warehouseId: data.warehouseId as string, destinationWarehouseId: data.destinationWarehouseId as string | undefined, memo: data.memo as string | undefined, lines: data.lines as never }, requestId); status = 201;
     } else if (resource === "documents" && path.length === 3 && request.method === "GET") result = await service.getDocument(session.user, tenantId, id);
     else if (resource === "documents" && path.length === 3 && request.method === "PATCH") {
@@ -51,7 +52,31 @@ export async function handleStock(request: Request): Promise<Response> {
     } else if (resource === "documents" && path.length === 4 && action === "post" && request.method === "POST") {
       const data = await body(request, ["version"]), key = request.headers.get("idempotency-key") ?? "";
       result = await service.post(session.user, tenantId, id, data.version as number, key, requestId);
+    } else if (resource === "documents" && path.length === 4 && action === "reverse" && request.method === "POST") {
+      const data = await body(request, ["reason"]), key = request.headers.get("idempotency-key") ?? "";
+      result = await service.reverse(session.user, tenantId, id, data.reason, key, requestId); status = 201;
     } else if (resource === "movements" && path.length === 3 && request.method === "GET") result = await service.getMovement(session.user, tenantId, id);
+    else if (resource === "counts" && path.length === 2 && request.method === "GET") {
+      result = await counts.list(session.user, tenantId, optionalId(url.searchParams.get("warehouseId"), "warehouse"), limit, offset);
+    } else if (resource === "counts" && path.length === 2 && request.method === "POST") {
+      const data = await body(request, ["warehouseId", "memo"]);
+      result = await counts.start(session.user, tenantId, data.warehouseId as string, data.memo as string | undefined, requestId); status = 201;
+    } else if (resource === "counts" && path.length === 3 && request.method === "GET") result = await counts.get(session.user, tenantId, id);
+    else if (resource === "counts" && path.length === 4 && action === "lines" && request.method === "POST") {
+      const data = await body(request, ["version", "productId", "locationId"]);
+      result = await counts.addLine(session.user, tenantId, id, data.productId as string, data.locationId as string, data.version as number, requestId);
+    } else if (resource === "counts" && path.length === 5 && action === "lines" && request.method === "PATCH") {
+      const lineId = path[4]; if (!uuid(lineId)) throw new TenantError(404, "not_found");
+      const data = await body(request, ["version", "countedQuantity", "reason"]);
+      result = await counts.setLine(session.user, tenantId, id, lineId, data.version as number, data.countedQuantity as number, data.reason as string | undefined, requestId);
+    } else if (resource === "counts" && path.length === 4 && action === "cancel" && request.method === "POST") {
+      const data = await body(request, ["version"]);
+      result = await counts.cancel(session.user, tenantId, id, data.version as number, requestId);
+    } else if (resource === "counts" && path.length === 4 && action === "post" && request.method === "POST") {
+      const data = await body(request, ["version"]), key = request.headers.get("idempotency-key") ?? "";
+      result = await counts.post(session.user, tenantId, id, data.version as number, key, requestId);
+      if (typeof result === "object" && result !== null && "stale" in result && result.stale === true) status = 409;
+    }
     else if (resource === "balances" && path.length === 2 && request.method === "GET") {
       result = await service.balances(session.user, tenantId, { productId: optionalId(url.searchParams.get("productId"), "product"), warehouseId: optionalId(url.searchParams.get("warehouseId"), "warehouse"), locationId: optionalId(url.searchParams.get("locationId"), "location") }, limit, offset);
     } else if (resource === "movements" && path.length === 2 && request.method === "GET") {

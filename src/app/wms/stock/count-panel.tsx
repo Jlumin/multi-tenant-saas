@@ -1,0 +1,32 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Workspace = { role: "owner" | "member"; tenant: { id: string; name: string } };
+type Item = { id: string; code: string; name: string };
+type CountLine = { id: string; snapshotQuantity: number; countedQuantity: number | null; reason: string; product: { code: string; name: string; baseUnit: string }; location: { code: string; name: string } };
+type Count = { id: string; number: string; status: "draft" | "posted" | "cancelled" | "stale"; version: number; warehouse: Item; lines: CountLine[] };
+type Page<T> = { items: T[] };
+const message = (code: string) => ({ owner_required: "只有 Owner 可以過帳。", count_stale: "盤點期間庫存已有異動，請取消並重新開盤。", count_incomplete: "請先填完每個品項的實盤數量。", unauthenticated: "請先登入。" }[code] ?? "操作失敗，請重新載入後再試。");
+
+export function CountPanel() {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]), [tenantId, setTenantId] = useState(""), [warehouses, setWarehouses] = useState<Item[]>([]), [warehouseId, setWarehouseId] = useState(""), [counts, setCounts] = useState<Count[]>([]), [selected, setSelected] = useState<Count | null>(null), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
+  const role = workspaces.find(item => item.tenant.id === tenantId)?.role;
+  async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+    const response = await fetch(path, { method, credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", ...(method === "POST" && path.endsWith("/post") ? { "Idempotency-Key": crypto.randomUUID() } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const data = await response.json(); if (!response.ok) throw new Error(message(data.error?.code)); return data as T;
+  }
+  async function load(id = tenantId) { if (!id) return; const [wh, list] = await Promise.all([api<Page<Item>>(`/api/wms/${id}/warehouses?limit=100`), api<Page<Count>>(`/api/wms-stock/${id}/counts?limit=50`)]); setWarehouses(wh.items); setCounts(list.items); }
+  useEffect(() => { void (async () => { try { const data = await api<Page<Workspace>>("/api/tenancy?limit=100"); setWorkspaces(data.items); if (data.items[0]) { setTenantId(data.items[0].tenant.id); const [wh, list] = await Promise.all([api<Page<Item>>(`/api/wms/${data.items[0].tenant.id}/warehouses?limit=100`), api<Page<Count>>(`/api/wms-stock/${data.items[0].tenant.id}/counts?limit=50`)]); setWarehouses(wh.items); setCounts(list.items); setWarehouseId(wh.items[0]?.id ?? ""); } } catch (error) { setNotice(error instanceof Error ? error.message : "載入失敗"); } })(); }, []);
+  async function run(action: () => Promise<void>) { setBusy(true); setNotice(""); try { await action(); } catch (error) { setNotice(error instanceof Error ? error.message : "操作失敗"); } finally { setBusy(false); } }
+  const root = `/api/wms-stock/${tenantId}/counts`;
+  return <section aria-labelledby="count-heading"><h2 id="count-heading">庫存盤點</h2>
+    <label>盤點工作空間<select value={tenantId} disabled={busy} onChange={event => void run(async () => { const id = event.target.value; setTenantId(id); setSelected(null); await load(id); })}><option value="">請選工作空間</option>{workspaces.map(item => <option key={item.tenant.id} value={item.tenant.id}>{item.tenant.name} · {item.role}</option>)}</select></label>
+    {tenantId && <><label>盤點倉庫<select value={warehouseId} disabled={busy} onChange={event => setWarehouseId(event.target.value)}><option value="">請選倉庫</option>{warehouses.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><button type="button" disabled={busy || !warehouseId} onClick={() => void run(async () => { const count = await api<Count>(root, "POST", { warehouseId, memo: "" }); setSelected(count); await load(); })}>建立盤點快照</button></>}
+    {notice && <p role="alert">{notice}</p>}
+    <h3>盤點單</h3>{counts.map(count => <article key={count.id}><button type="button" disabled={busy} onClick={() => void run(async () => setSelected(await api<Count>(`${root}/${count.id}`)))}>{count.number} · {count.warehouse.name} · {count.status}</button></article>)}
+    {selected && <article><h3>{selected.number} · {selected.warehouse.name}</h3><p>快照建立後該倉庫如有任何庫存異動，本次盤點將無法過帳，需重新開始。</p>{selected.lines.map(line => <div key={line.id}><p>{line.product.code} · {line.product.name} · {line.location.code}｜帳面 {line.snapshotQuantity} {line.product.baseUnit}</p><label>實盤數量<input aria-label={`${line.product.code} 實盤數量`} type="number" min="0" step="1" disabled={busy || selected.status !== "draft"} value={line.countedQuantity ?? ""} onChange={event => { const value = event.target.value === "" ? null : Number(event.target.value); setSelected(current => current ? { ...current, lines: current.lines.map(row => row.id === line.id ? { ...row, countedQuantity: value } : row) } : current); }} /></label><label>差異原因（選填）<input maxLength={200} disabled={busy || selected.status !== "draft"} value={line.reason} onChange={event => setSelected(current => current ? { ...current, lines: current.lines.map(row => row.id === line.id ? { ...row, reason: event.target.value } : row) } : current)} /></label><button type="button" disabled={busy || selected.status !== "draft" || line.countedQuantity === null} onClick={() => void run(async () => { const updated = await api<Count>(`${root}/${selected.id}/lines/${line.id}`, "PATCH", { version: selected.version, countedQuantity: line.countedQuantity, reason: line.reason }); setSelected(updated); await load(); })}>儲存盤點數量</button></div>)}
+      {selected.status === "draft" && <nav><button type="button" disabled={busy} onClick={() => void run(async () => { setSelected(await api<Count>(`${root}/${selected.id}/cancel`, "POST", { version: selected.version })); await load(); })}>取消盤點</button><button type="button" disabled={busy || role !== "owner" || selected.lines.some(line => line.countedQuantity === null)} onClick={() => void run(async () => { setSelected(await api<Count>(`${root}/${selected.id}/post`, "POST", { version: selected.version })); await load(); })}>Owner 過帳盤點差異</button></nav>}
+    </article>}
+  </section>;
+}
