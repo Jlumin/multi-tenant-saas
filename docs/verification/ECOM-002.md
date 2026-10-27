@@ -43,6 +43,6 @@
 - `npm run test:http`：通過 production HTTP smoke。
 - `npm run test:auth:http`：通過實際 Next + PostgreSQL + Mailpit 流程；包含訪客下單、server 價格、冪等重送、Owner 訂單查詢及 Member 拒絕。
 - 本機 `npm run db:deploy`／`npm run db:status`：通過，為 `multi_tenant_dev` 套用第 12、13 份 additive migrations，狀態 up to date；未 reset 資料庫。
-- GitHub Actions Draft PR #27 / run #31：PASS；`npm ci`、lint、typecheck、unit、DB validate/smoke、PostgreSQL integration、dev/prod HTTP smoke、production build 及 auth HTTP smoke 全通過。
+- GitHub Actions Draft PR #27 / runs #31 and #32：PASS；feature head 與文件證據更新 head 均通過 `npm ci`、lint、typecheck、unit、DB validate/smoke、PostgreSQL integration、dev/prod HTTP smoke、production build 及 auth HTTP smoke。
 
 本機人工瀏覽器試用可用 ECOM-002 專用假資料帳號；不把帳密或 `.env` 寫入 Git。
