@@ -33,6 +33,8 @@ UI 隱藏按鈕不構成授權；所有可直接呼叫的 endpoint 都必須檢�
 
 E-Commerce 需求與候選分期見 [ECOMMERCE-REQUIREMENTS.md](ECOMMERCE-REQUIREMENTS.md)。商品目錄與 WMS SKU、買家身份與 CRM、訂單與 Restaurant、支付／物流供應商的 owner 尚未最終核定。
 
+ECOM-001 以 `ecom_stores`、`ecom_products` 作為 E-Commerce 私有表；Owner 寫入，Member 讀取，公開讀取僅依全域 slug 查找啟用店面及上架商品。公開路由不接受 tenantId。此目錄 slice 不建立 WMS SKU 外鍵或跨模組寫入。細節與暫定政策見 [ECOMMERCE-REQUIREMENTS.md](ECOMMERCE-REQUIREMENTS.md)。
+
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
 這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。
