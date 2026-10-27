@@ -20,5 +20,6 @@
 ## 驗證方式
 
 - 文件交叉比對 `src/server/ecommerce/orders.ts`、`src/server/wms/stock-service.ts`、`prisma/schema.prisma`、WMS ADR 0006 與 E-Commerce/WMS requirements。
-- `git diff --check`：提交前執行，結果和 PR CI 狀態於此更新。
-- 文件-only 變更不執行應用測試；Draft PR CI 將執行現有 lint、typecheck、unit、auth/DB integration、HTTP smoke、build 與 Compose 驗證。CI 若未執行或失敗，需列出狀態與環境限制，不宣稱通過。
+- `git diff --check` 與提交前 `git diff --cached --check`：通過，無 whitespace errors。
+- 文件-only 變更沒有額外執行本機應用測試；Draft PR #29 的 GitHub Actions run `40560044105`（head `e471df76b16e94801ae90231e7d03822d7051bf5`）全套成功：lint、typecheck、unit、DB validate/smoke、PostgreSQL integration、dev HTTP smoke、build、production HTTP smoke、auth HTTP smoke。
+- CI 僅有一筆非阻擋 notice：`ubuntu-latest` 將於 2026-10-19 起遷移 Ubuntu 26；沒有失敗 annotation。
