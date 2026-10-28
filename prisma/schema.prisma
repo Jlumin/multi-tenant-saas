@@ -36,6 +36,7 @@ model Tenant {
   restaurantItems          RestaurantMenuItem[]
   restaurantTables         RestaurantTable[]
   restaurantOrders         RestaurantOrder[]
+  crmContacts              CrmContact[]
 
   @@map("tenants")
 }
@@ -132,6 +133,7 @@ model Membership {
   restaurantCategoriesCreated RestaurantMenuCategory[] @relation("RestaurantCategoryCreator")
   restaurantItemsCreated      RestaurantMenuItem[]     @relation("RestaurantItemCreator")
   restaurantTablesCreated     RestaurantTable[]        @relation("RestaurantTableCreator")
+  crmContactsCreated          CrmContact[]             @relation("CrmContactCreator")
 
   @@id([tenantId, userId])
   @@index([userId, isActive])
@@ -892,4 +894,28 @@ model RestaurantOrderLine {
   @@unique([tenantId, orderId, itemId])
   @@index([tenantId, restaurantId, orderId])
   @@map("restaurant_order_lines")
+}
+
+model CrmContact {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @map("tenant_id") @db.Uuid
+  displayName String     @map("display_name") @db.VarChar(120)
+  email       String?    @db.VarChar(254)
+  phone       String?    @db.VarChar(32)
+  notes       String     @default("") @db.VarChar(2000)
+  isActive    Boolean    @default(true) @map("is_active")
+  archivedAt  DateTime?  @map("archived_at") @db.Timestamptz(3)
+  version     Int        @default(1)
+  createdById String     @map("created_by_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator     Membership @relation("CrmContactCreator", fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, email])
+  @@unique([tenantId, phone])
+  @@index([tenantId, isActive, createdAt])
+  @@index([tenantId, displayName])
+  @@map("crm_contacts")
 }

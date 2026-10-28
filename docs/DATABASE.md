@@ -27,6 +27,8 @@ HR-001 新增 `hr_employees`、`hr_attendance`、`hr_attendance_adjustments`、`
 
 RESTAURANT-001 新增 `restaurants`、`restaurant_menu_categories`、`restaurant_menu_items`、`restaurant_tables`、`restaurant_orders`、`restaurant_order_lines` 與 `RestaurantOrderStatus`。所有餐廳 child rows 以 tenant/restaurant 複合 FK 限制邊界；order line 同時參照同餐廳訂單與商品。每餐廳 table QR 僅保存 256-bit token 的 SHA-256 digest，冪等鍵也以 digest 保存。訂單行固定商品代碼／品名／單價／數量／金額快照；資料庫 trigger 禁止訂單及明細修改或刪除、限制狀態轉移，並延遲驗證訂單總額和至少一筆明細。匿名訂單 audit 不寫訪客資料或 QR token。初始預設 TWD、單租戶單餐廳為待試用確認政策；詳見 [Restaurant 需求](RESTAURANT-REQUIREMENTS.md)。
 
+CRM-001 新增 crm_contacts。姓名、選填 email／電話、選填備註及 archive/version 時間皆以 tenant 範圍保存；建立者必須以複合 FK 屬於該 tenant。email 小寫正規化及電話符號正規化由服務層完成，tenant/email 與 tenant/phone unique 約束包含已封存資料，避免同一租戶重複識別。封存保留原始列；Owner 寫入與 audit 同交易。聯絡值及備註為可能含個資的資料，不進日誌；保存期限待產品確認。見 [CRM 需求](CRM-REQUIREMENTS.md)。
+
 ## 隔離與完整性
 - 所有業務資料 tenant_id NOT NULL，索引以 tenant_id 起始以支援 scoped queries。
 - 授權查詢必須使用有效 membership；變更角色與移除成員採交易保護最後一位 owner。

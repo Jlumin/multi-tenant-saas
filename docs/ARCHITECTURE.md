@@ -43,6 +43,8 @@ HR-001 由 `hr` 擁有 `hr_employees`、`hr_attendance`、`hr_attendance_adjustm
 
 RESTAURANT-001 由 `restaurant` 擁有 restaurant/menu/table/order tables。每 tenant 限一間餐廳；桌位 QR 只儲存 256-bit token 的 SHA-256 digest，公開服務以 digest 定位啟用桌位並回傳上架菜單。公開送單只接受商品 ID／整數數量與冪等 key；服務端重查價格並同交易寫訂單快照及匿名 tenant audit。Owner 管理主檔；Owner／Member 經 tenant membership 授權操作 POS。PostgreSQL 複合外鍵、append-only snapshot trigger、延遲總額驗證及狀態轉換 trigger 保護訂單。此切片沒有付款、WMS、CRM、KDS 或硬體整合。細節見 [Restaurant 需求](RESTAURANT-REQUIREMENTS.md)。
 
+CRM-001 由 crm 擁有 crm_contacts，儲存 tenant 內客戶姓名、正規化 email／電話、選填備註及封存狀態。Owner 寫入，Owner／Member 經有效 tenant membership 查閱。所有查詢以 tenant 範圍執行，email／電話 unique、建立者 membership 複合 FK；封存不物理刪除。CRM 不直接寫入 E-Commerce／Restaurant 訂單或 identity tables，跨模組會員連結尚未核定。詳細欄位、個資假設見 [CRM 需求](CRM-REQUIREMENTS.md)。
+
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
 這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。
