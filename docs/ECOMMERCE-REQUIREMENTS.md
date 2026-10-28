@@ -148,4 +148,4 @@
 
 ## ECOM-003 Discovery：WMS 商品關聯與庫存契約
 
-依 ECOM-DISCOVERY-001 的候選分期，ECOM-WMS 整合探索見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)（Issue #28）。Owner 已確認：每項商品映射同租戶 WMS SKU、每店指定單一出貨倉、預設不跨倉調撥但提供 WMS 調撥開關、缺貨拒絕 checkout 並提供到貨 email 登記；商品須實際回倉並完成 WMS 入庫／退回過帳才恢復可售。實作由 Issue #30 交付 WMS-owned availability/reservation、缺貨阻擋、到貨通知與調撥開關。現有 WMS balance read 不可假裝預留或防超賣；付款與正式郵件供應商仍不在此切片。
+依 ECOM-DISCOVERY-001 的候選分期，決策見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)（Issue #28）；implementation 對應 Issue #30。實作將 checkout 同交易原子預留、店倉可售量、缺貨阻擋、Owner 確認履約／回倉釋回、到貨 opt-in/退訂通知與 Owner 可切換的 WMS 跨倉調撥串接。釋回不增加庫存；退回品須完成 WMS 入庫才恢復可售。付款與正式 SMTP 不在範圍；驗收證據見 `docs/verification/ECOM-003.md`。

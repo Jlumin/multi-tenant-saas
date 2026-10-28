@@ -60,12 +60,12 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 13);
-  const wmsTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['wms_documents','wms_document_lines','wms_stock_balances','wms_stock_movements','wms_posting_keys','wms_stock_counts','wms_stock_count_lines','wms_opening_entries']) AS name ORDER BY table_name")).rows;
-  assert.equal(wmsTables.length, 8);
+  assert.equal(history.length, 15);
+  const wmsTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['wms_documents','wms_document_lines','wms_stock_balances','wms_stock_movements','wms_posting_keys','wms_stock_counts','wms_stock_count_lines','wms_opening_entries','wms_tenant_settings','wms_stock_reservations','wms_stock_reservation_lines']) AS name ORDER BY table_name")).rows;
+  assert.equal(wmsTables.length, 11);
   assert.ok(wmsTables.every(row => row.table_name !== null));
-  const ecomTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['ecom_stores','ecom_products','ecom_orders','ecom_order_lines']) AS name ORDER BY table_name")).rows;
-  assert.equal(ecomTables.length, 4);
+  const ecomTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['ecom_stores','ecom_products','ecom_orders','ecom_order_lines','ecom_restock_subscriptions']) AS name ORDER BY table_name")).rows;
+  assert.equal(ecomTables.length, 5);
   assert.ok(ecomTables.every(row => row.table_name !== null));
   assert.equal((await database.query("SELECT count(*)::int AS total FROM information_schema.columns WHERE table_schema='public' AND ((table_name='wms_documents' AND column_name='destination_warehouse_id') OR (table_name='wms_document_lines' AND column_name IN ('target_warehouse_id','target_location_id')))")).rows[0].total, 3);
   assert.ok((await database.query("SELECT enumlabel FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='WmsDocumentType' AND enumlabel='transfer'")).rows.length === 1);

@@ -37,7 +37,7 @@ ECOM-001 以 `ecom_stores`、`ecom_products` 作為 E-Commerce 私有表；Owner
 
 ECOM-002 延伸至 E-Commerce 自有 `ecom_orders`／`ecom_order_lines`。公開 checkout 僅接受姓名/email、商品 ID/數量與高熵冪等鍵；服務端依 slug 重查啟用店面及上架商品，用 Decimal 重算價格並同交易寫入快照和匿名 metadata audit。checkout 與 Owner 商品／店面更新共用租戶列鎖，避免下架競態。Owner API 依已驗證 session、membership、role 與 tenant scope 回傳買家資料；Member、匿名及非成員不能讀訂單。資料庫 trigger 保護訂單快照不可更新／刪除，且只允許隨建立訂單的交易新增明細，提交時驗證總額、幣別與明細一致。購物車僅存 browser localStorage；沒有 WMS 庫存、CRM、付款或配送呼叫。訪客聯絡資料保存政策未定，僅限本機與測試環境。
 
-WMS 對 E-Commerce 的現況與契約候選見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)。WMS 的餘額查詢只表示當下帳面量，沒有 reservation，不提供預留競態保護；在商品 ID 關聯、供貨倉、預留時機及訂單釋回狀態確認前，E-Commerce 不讀取或扣減 WMS。之後由 WMS public service 擁有 reservation 寫入，禁止 E-Commerce 直接存取 WMS models。
+WMS 與 E-Commerce 的商品映射、指定倉庫可售量、原子 reservation、履約、實物回倉釋回及到貨通知見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)。WMS contract 擁有 reservation 與庫存 movement 寫入；E-Commerce 不直接存取 WMS models。跨倉調撥預設關閉且只能經 WMS transfer service；公開目錄不能把其他倉庫數量合併。
 
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。

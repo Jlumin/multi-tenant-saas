@@ -155,9 +155,14 @@ export function createStock(db: PrismaClient) {
         if (current.version !== version) throw new TenantError(409, "version_conflict");
         const warehouse = await tx.wmsWarehouse.findFirst({ where: { tenantId, id: current.warehouseId, isActive: true } });
         if (!warehouse) throw new TenantError(409, "master_inactive");
+        if (current.type === "transfer") {
+          const setting = await tx.wmsTenantSetting.findUnique({ where: { tenantId }, select: { allowInterWarehouseTransfers: true } });
+          if (!setting?.allowInterWarehouseTransfers) throw new TenantError(409, "inter_warehouse_transfer_disabled");
+        }
         if (current.type === "transfer" && (!current.destinationWarehouseId || !await tx.wmsWarehouse.findFirst({ where: { tenantId, id: current.destinationWarehouseId, isActive: true } }))) throw new TenantError(409, "master_inactive");
         if (current.type === "adjustment" && !current.reversalOfId) throw new TenantError(409, "invalid_adjustment");
         const pending = new Map<string, number>();
+        const reservedByBalance = new Map<string, number>();
         const effects: Array<{ line: typeof current.lines[number]; warehouseId: string; locationId: string; delta: number }> = [];
         for (const line of current.lines) {
           const [product, unit, location] = await Promise.all([
@@ -183,6 +188,12 @@ export function createStock(db: PrismaClient) {
             const next = balance + change.delta;
             if (next < 0) throw new TenantError(409, "insufficient_stock");
             if (next > MAX) throw new TenantError(409, "stock_overflow");
+            if (change.delta < 0) {
+              let reserved = reservedByBalance.get(balanceKey);
+              if (reserved === undefined) reserved = (await tx.wmsStockReservationLine.aggregate({ where: { tenantId, productId: line.productId, warehouseId: change.warehouseId, locationId: change.locationId, reservation: { status: "active" } }, _sum: { quantity: true } }))._sum.quantity ?? 0;
+              if (next < reserved) throw new TenantError(409, "stock_reserved");
+              reservedByBalance.set(balanceKey, reserved);
+            }
             pending.set(balanceKey, next);
             effects.push({ line, ...change });
           }
@@ -200,6 +211,25 @@ export function createStock(db: PrismaClient) {
         await tx.wmsPostingKey.create({ data: { tenantId, key, documentId: id, payloadHash: hash } });
         await recordTenantEvent(tx, tenantId, actor.id, `wms.${current.type}.posted`, id, requestId);
         return document(tx, tenantId, id);
+      });
+    },
+    async settings(actor: Actor, tenantId: string) {
+      return db.$transaction(async tx => {
+        await requireTenantContext(tx, actor, tenantId);
+        return await tx.wmsTenantSetting.findUnique({ where: { tenantId } }) ?? { tenantId, allowInterWarehouseTransfers: false, version: 1, updatedAt: new Date(0) };
+      });
+    },
+    async updateSettings(actor: Actor, tenantId: string, input: { allowInterWarehouseTransfers: boolean; version: number }, requestId?: string) {
+      if (typeof input.allowInterWarehouseTransfers !== "boolean" || !Number.isSafeInteger(input.version) || input.version < 1) throw new TenantError(400, "invalid_settings");
+      return db.$transaction(async tx => {
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, true);
+        const existing = await tx.wmsTenantSetting.findUnique({ where: { tenantId } });
+        if (existing && existing.version !== input.version || !existing && input.version !== 1) throw new TenantError(409, "version_conflict");
+        const setting = existing
+          ? await tx.wmsTenantSetting.update({ where: { tenantId }, data: { allowInterWarehouseTransfers: input.allowInterWarehouseTransfers, version: { increment: 1 } } })
+          : await tx.wmsTenantSetting.create({ data: { tenantId, allowInterWarehouseTransfers: input.allowInterWarehouseTransfers } });
+        await recordTenantEvent(tx, tenantId, actor.id, "wms.settings.updated", tenantId, requestId);
+        return setting;
       });
     },
     async reverse(actor: Actor, tenantId: string, id: string, reason: unknown, key: string, requestId: string) {
@@ -249,6 +279,10 @@ export function createStock(db: PrismaClient) {
             const next = balance + change.delta;
             if (next < 0) throw new TenantError(409, "insufficient_stock");
             if (next > MAX) throw new TenantError(409, "stock_overflow");
+            if (change.delta < 0) {
+              const reserved = (await tx.wmsStockReservationLine.aggregate({ where: { tenantId, productId: line.productId, warehouseId: change.warehouseId, locationId: change.locationId, reservation: { status: "active" } }, _sum: { quantity: true } }))._sum.quantity ?? 0;
+              if (next < reserved) throw new TenantError(409, "stock_reserved");
+            }
             pending.set(balanceKey, next); effects.push({ line, ...change });
           }
         }

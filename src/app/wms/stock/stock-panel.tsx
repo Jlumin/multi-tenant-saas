@@ -11,7 +11,8 @@ type Balance = { tenantId: string; productId: string; warehouseId: string; locat
 type Page<T> = { items: T[]; total: number; limit: number; offset: number };
 type Movement = { id: string; delta: number; actorId: string; createdAt: string; document: { number: string; type: "inbound" | "outbound" | "transfer" | "opening" | "adjustment"; warehouseId: string; destinationWarehouseId: string | null; postedAt: string | null; postedById: string | null }; product: { code: string; name: string; baseUnit: string }; warehouse: { code: string; name: string }; location: { code: string; name: string }; line: { locationId: string; targetLocationId: string | null; unitCode: string; unitName: string; baseUnit: string; quantity: number; factor: number; baseQuantity: number; position: number } };
 type QueryFilters = { productId: string; warehouseId: string; locationId: string };
-const messages: Record<string, string> = { unauthenticated: "請先登入。", not_found: "資料不存在或沒有存取權。", owner_required: "只有 Owner 可以過帳。", master_inactive: "商品、倉庫、儲位或單位已停用。", insufficient_stock: "來源庫存不足，沒有過帳任何明細。", stock_overflow: "庫存超過整數上限。", unit_changed: "包裝規格已變更，請更新草稿明細後再過帳。", version_conflict: "單據已被更新，請重新載入。", document_not_editable: "只有草稿可以修改。", document_not_cancellable: "只有草稿可以取消。", document_not_postable: "只有草稿可以過帳。", idempotency_conflict: "此請求識別碼已用於其他內容。", invalid_quantity: "數量必須是正整數。", invalid_lines: "請完整選擇商品、來源／目的儲位、單位和數量。", same_location: "來源與目的儲位相同，請改選其他儲位。", invalid_transfer: "調撥目的資料不完整，請重新選擇目的倉庫與儲位。" };
+type WmsSettings = { allowInterWarehouseTransfers: boolean; version: number };
+const messages: Record<string, string> = { unauthenticated: "請先登入。", not_found: "資料不存在或沒有存取權。", owner_required: "只有 Owner 可以過帳。", master_inactive: "商品、倉庫、儲位或單位已停用。", insufficient_stock: "來源庫存不足，沒有過帳任何明細。", stock_reserved: "此庫存已有訂單預留，不能再出庫或調撥。", inter_warehouse_transfer_disabled: "目前已關閉跨倉調撥，請由 Owner 到本頁開啟後再試。", stock_overflow: "庫存超過整數上限。", unit_changed: "包裝規格已變更，請更新草稿明細後再過帳。", version_conflict: "單據已被更新，請重新載入。", document_not_editable: "只有草稿可以修改。", document_not_cancellable: "只有草稿可以取消。", document_not_postable: "只有草稿可以過帳。", idempotency_conflict: "此請求識別碼已用於其他內容。", invalid_quantity: "數量必須是正整數。", invalid_lines: "請完整選擇商品、來源／目的儲位、單位和數量。", same_location: "來源與目的儲位相同，請改選其他儲位。", invalid_transfer: "調撥目的資料不完整，請重新選擇目的倉庫與儲位。" };
 async function request<T>(path: string, method = "GET", body?: unknown, key?: string): Promise<T> {
   const response = await fetch(path, { method, credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const data = await response.json();
@@ -28,7 +29,7 @@ export function StockPanel() {
   const [type, setType] = useState<Doc["type"]>("inbound"), [warehouses, setWarehouses] = useState<Master[]>([]), [locations, setLocations] = useState<Master[]>([]), [allLocations, setAllLocations] = useState<Master[]>([]), [products, setProducts] = useState<Master[]>([]), [units, setUnits] = useState<Unit[]>([]);
   const [warehouseId, setWarehouseId] = useState(""), [locationId, setLocationId] = useState(""), [destinationWarehouseId, setDestinationWarehouseId] = useState(""), [targetLocationId, setTargetLocationId] = useState(""), [productId, setProductId] = useState(""), [unitId, setUnitId] = useState(""), [count, setCount] = useState("1"), [memo, setMemo] = useState("");
   const [reverseReason, setReverseReason] = useState("");
-  const [documents, setDocuments] = useState<Doc[]>([]), [selected, setSelected] = useState<Doc | null>(null), [selectedMovement, setSelectedMovement] = useState<Movement | null>(null), [balances, setBalances] = useState<Balance[]>([]), [formBalances, setFormBalances] = useState<Balance[]>([]), [balanceTotal, setBalanceTotal] = useState(0), [balanceOffset, setBalanceOffset] = useState(0), [movements, setMovements] = useState<Movement[]>([]), [movementTotal, setMovementTotal] = useState(0), [movementOffset, setMovementOffset] = useState(0), [queryFilters, setQueryFilters] = useState<QueryFilters>({ productId: "", warehouseId: "", locationId: "" }), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
+  const [documents, setDocuments] = useState<Doc[]>([]), [selected, setSelected] = useState<Doc | null>(null), [selectedMovement, setSelectedMovement] = useState<Movement | null>(null), [balances, setBalances] = useState<Balance[]>([]), [formBalances, setFormBalances] = useState<Balance[]>([]), [balanceTotal, setBalanceTotal] = useState(0), [balanceOffset, setBalanceOffset] = useState(0), [movements, setMovements] = useState<Movement[]>([]), [movementTotal, setMovementTotal] = useState(0), [movementOffset, setMovementOffset] = useState(0), [queryFilters, setQueryFilters] = useState<QueryFilters>({ productId: "", warehouseId: "", locationId: "" }), [settings, setSettings] = useState<WmsSettings>({ allowInterWarehouseTransfers: false, version: 1 }), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const role = workspaces.find(item => item.tenant.id === tenantId)?.role;
   const draftEditable = !selected || selected.status === "draft";
   async function loadBalancePage(id: string, filters: QueryFilters, offset = 0) {
@@ -52,12 +53,12 @@ export function StockPanel() {
     setTenantId(id); setSelected(null); setSelectedMovement(null); setMessage("");
     const emptyFilters = { productId: "", warehouseId: "", locationId: "" };
     setQueryFilters(emptyFilters); setBalanceOffset(0); setMovementOffset(0);
-    if (!id) { setWarehouses([]); setProducts([]); setLocations([]); setAllLocations([]); setUnits([]); setDocuments([]); setBalances([]); setFormBalances([]); setBalanceTotal(0); setMovements([]); setMovementTotal(0); return; }
-    const [wh, pr, docs] = await Promise.all([
-      request<Page<Master>>(`${masterPath(id)}/warehouses?limit=100`), request<Page<Master>>(`${masterPath(id)}/products?limit=100`), request<Page<Doc>>(`${stockPath(id)}/documents?limit=50`),
+    if (!id) { setWarehouses([]); setProducts([]); setLocations([]); setAllLocations([]); setUnits([]); setDocuments([]); setBalances([]); setFormBalances([]); setBalanceTotal(0); setMovements([]); setMovementTotal(0); setSettings({ allowInterWarehouseTransfers: false, version: 1 }); return; }
+    const [wh, pr, docs, nextSettings] = await Promise.all([
+      request<Page<Master>>(`${masterPath(id)}/warehouses?limit=100`), request<Page<Master>>(`${masterPath(id)}/products?limit=100`), request<Page<Doc>>(`${stockPath(id)}/documents?limit=50`), request<WmsSettings>(`${stockPath(id)}/settings`),
     ]);
     const activeWarehouses = wh.items.filter(item => item.isActive), activeProducts = pr.items.filter(item => item.isActive);
-    setWarehouses(activeWarehouses); setProducts(activeProducts); setDocuments(docs.items);
+    setWarehouses(activeWarehouses); setProducts(activeProducts); setDocuments(docs.items); setSettings(nextSettings);
     const nestedLocations = await Promise.all(activeWarehouses.map(async item => {
       const result = await request<Page<Master>>(`${masterPath(id)}/warehouses/${item.id}/locations?limit=100`);
       return result.items.map(location => ({ ...location, warehouseId: item.id }));
@@ -69,6 +70,7 @@ export function StockPanel() {
     await Promise.all([loadLocationData(id, firstWarehouse), loadUnits(id, firstProduct), loadQueries(id, emptyFilters)]);
   }
   async function refreshDocs(id = tenantId) { if (id) setDocuments((await request<Page<Doc>>(`${stockPath(id)}/documents?limit=50`)).items); }
+  async function toggleTransfers() { await run(async () => { const next = await request<WmsSettings>(`${stockPath(tenantId)}/settings`, "PATCH", { allowInterWarehouseTransfers: !settings.allowInterWarehouseTransfers, version: settings.version }); setSettings(next); setMessage(next.allowInterWarehouseTransfers ? "跨倉調撥已開啟。" : "跨倉調撥已關閉。"); }); }
   async function loadLocationData(id: string, warehouse: string) {
     if (!id || !warehouse) { setLocations([]); setLocationId(""); setFormBalances([]); return; }
     const [loc, bal] = await Promise.all([request<Page<Master>>(`${masterPath(id)}/warehouses/${warehouse}/locations?limit=100`), request<Page<Balance>>(`${stockPath(id)}/balances?warehouseId=${warehouse}&limit=100`)]);
@@ -107,6 +109,7 @@ export function StockPanel() {
     {message && <p role="status" className="notice">{message}</p>}
     <label>工作空間<select aria-label="工作空間" disabled={busy} value={tenantId} onChange={event => void run(() => loadWorkspace(event.target.value))}><option value="">請選擇工作空間</option>{workspaces.map(item => <option key={item.tenant.id} value={item.tenant.id}>{item.tenant.name} · {item.role}</option>)}</select></label>
     {tenantId && <>
+      <section><h2>跨倉調撥設定</h2><p>預設關閉。啟用後 Owner 可使用 WMS 調撥單；此設定不會把不同倉庫庫存合併成線上可售量。</p><label className="check"><input type="checkbox" checked={settings.allowInterWarehouseTransfers} disabled={busy || role !== "owner"} onChange={() => void toggleTransfers()} />允許跨倉調撥</label>{role !== "owner" && <p className="hint">只有 Owner 可以調整。</p>}</section>
       <nav aria-label="單據類型"><button type="button" disabled={busy} aria-pressed={type === "inbound"} onClick={() => { setType("inbound"); setSelected(null); setMemo(""); }}>入庫</button><button type="button" disabled={busy} aria-pressed={type === "outbound"} onClick={() => { setType("outbound"); setSelected(null); setMemo(""); }}>出庫</button><button type="button" disabled={busy || warehouses.length < 1} aria-pressed={type === "transfer"} onClick={() => { setType("transfer"); setSelected(null); setMemo(""); }}>調撥／移位</button><button type="button" disabled={busy || role !== "owner"} aria-pressed={type === "opening"} onClick={() => { setType("opening"); setSelected(null); setMemo(""); }}>期初入庫（Owner）</button></nav>
       <h2>{selected ? `${typeName(selected.type)}單 ${selected.number} · ${statusName(selected.status)}` : `新增${typeName(type)}草稿`}</h2>
       <form aria-label="庫存單據" onSubmit={submit}><fieldset disabled={busy || !draftEditable}>

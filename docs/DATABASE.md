@@ -21,6 +21,8 @@ ECOM-001 新增 `ecom_stores` 與 `ecom_products`。一店／租戶及公開 slu
 
 ECOM-002 新增 `ecom_orders` 與 `ecom_order_lines`。訂單與明細皆帶 `tenant_id`／`store_id`；明細以複合外鍵同時參照所屬訂單與商品，避免跨租戶／跨店關聯。商品代碼、名稱、單價、數量、明細金額、幣別與總額在下單當下保存；數量限制 1–99，金額採 `numeric(12,2)`。資料庫 trigger 拒絕修改或刪除訂單與明細、拒絕事後新增明細，並於交易提交時檢查至少一筆明細、總額及店面幣別一致。修正需後續另定沖銷／狀態流程。高熵冪等鍵保存 SHA-256 摘要，含個資 payload 保存伺服器秘密 HMAC 摘要。訪客姓名及 email 目前明文存於訂單表；保存期限尚未核定，功能限本機／測試，不得視為正式營運就緒。下單、明細、總額與匿名 metadata audit 同一交易提交；Owner 才能查看本租戶訂單。
 
+ECOM-003 新增店面 `warehouse_id` 及商品／訂單明細的 WMS SKU reference（刻意不加跨模組 FK），WMS 租戶設定、reservation header/lines 與 E-Commerce restock subscription。Reservation line 固定租戶、SKU、倉庫、儲位與正整數基本量；資料庫拒絕修改或刪除 reservation content，狀態僅能由 active 轉 fulfilled/released。履約 WMS outbound posting 與 reservation transition 共用交易；釋回不修改餘額，必須另有 WMS inbound/return。Restock subscription 以 HMAC email hash 做每商品冪等唯一性，保留退訂 token 雜湊、通知狀態與嘗試次數；email 為寄送所需的個資欄位，不得進日誌。跨倉設定預設 false。
+
 ## 隔離與完整性
 - 所有業務資料 tenant_id NOT NULL，索引以 tenant_id 起始以支援 scoped queries。
 - 授權查詢必須使用有效 membership；變更角色與移除成員採交易保護最後一位 owner。

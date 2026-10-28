@@ -2,12 +2,13 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import { Prisma } from "../../generated/prisma/client";
 import type { PrismaClient } from "../../generated/prisma/client";
 import { lockTenant, recordTenantEvent, requireTenantContext, TenantError, type Actor } from "../tenancy/service";
+import { fulfillWmsOrderReservation, getWmsOrderReservationStatuses, releaseWmsOrderReservation, reserveWmsInventoryForOrder } from "../wms/ecommerce-contract";
 
 type CheckoutInput = { buyerName: string; buyerEmail: string; lines: Array<{ productId: string; quantity: number }> };
 const orderSelect = {
   id: true, tenantId: true, storeId: true, orderNumber: true, status: true, currency: true,
   buyerName: true, buyerEmail: true, totalAmount: true, createdAt: true,
-  lines: { select: { id: true, productId: true, productCode: true, productName: true, quantity: true, unitPrice: true, lineTotal: true }, orderBy: { id: "asc" as const } },
+  lines: { select: { id: true, productId: true, wmsProductId: true, productCode: true, productName: true, quantity: true, unitPrice: true, lineTotal: true }, orderBy: { id: "asc" as const } },
 } as const;
 function secret() {
   const value = process.env.BETTER_AUTH_SECRET;
@@ -35,7 +36,7 @@ export function createEcommerceOrders(db: PrismaClient) {
       const payloadHash = keyedDigest(canonical(input));
       return db.$transaction(async tx => {
         await lockTenant(tx, storeBySlug.tenantId);
-        const store = await tx.ecomStore.findUnique({ where: { id: storeBySlug.id }, select: { id: true, tenantId: true, currency: true, isActive: true } });
+        const store = await tx.ecomStore.findUnique({ where: { id: storeBySlug.id }, select: { id: true, tenantId: true, currency: true, warehouseId: true, isActive: true } });
         if (!store) throw new TenantError(404, "not_found");
         const prior = await tx.ecomOrder.findUnique({ where: { tenantId_storeId_idempotencyKeyHash: { tenantId: store.tenantId, storeId: store.id, idempotencyKeyHash } }, select: { ...orderSelect, payloadHash: true } });
         if (prior) {
@@ -43,8 +44,9 @@ export function createEcommerceOrders(db: PrismaClient) {
           return publicOrder(prior, true);
         }
         if (!store.isActive) throw new TenantError(404, "not_found");
+        if (!store.warehouseId) throw new TenantError(409, "store_warehouse_required");
         const ids = input.lines.map(line => line.productId);
-        const products = await tx.ecomProduct.findMany({ where: { tenantId: store.tenantId, storeId: store.id, id: { in: ids }, isPublished: true }, select: { id: true, code: true, name: true, price: true } });
+        const products = await tx.ecomProduct.findMany({ where: { tenantId: store.tenantId, storeId: store.id, id: { in: ids }, isPublished: true, wmsProductId: { not: null } }, select: { id: true, code: true, name: true, price: true, wmsProductId: true } });
         if (products.length !== ids.length) throw new TenantError(409, "products_unavailable");
         const byId = new Map(products.map(product => [product.id, product]));
         let total = new Prisma.Decimal(0);
@@ -53,11 +55,12 @@ export function createEcommerceOrders(db: PrismaClient) {
           const unitPrice = new Prisma.Decimal(product.price);
           const lineTotal = unitPrice.mul(line.quantity);
           total = total.add(lineTotal);
-          return { tenantId: store.tenantId, storeId: store.id, productId: product.id, productCode: product.code, productName: product.name, quantity: line.quantity, unitPrice, lineTotal };
+          return { tenantId: store.tenantId, storeId: store.id, productId: product.id, wmsProductId: product.wmsProductId, productCode: product.code, productName: product.name, quantity: line.quantity, unitPrice, lineTotal };
         });
         if (total.greaterThan("9999999999.99")) throw new TenantError(400, "order_total_too_large");
         const created = await tx.ecomOrder.create({ data: { tenantId: store.tenantId, storeId: store.id, orderNumber: orderNumber(), status: "submitted", currency: store.currency, buyerName: input.buyerName, buyerEmail: input.buyerEmail, totalAmount: total, idempotencyKeyHash, payloadHash }, select: { id: true } });
         await tx.ecomOrderLine.createMany({ data: lines.map(line => ({ ...line, orderId: created.id })) });
+        await reserveWmsInventoryForOrder(tx, { tenantId: store.tenantId, warehouseId: store.warehouseId, orderId: created.id, key: idempotencyKeyHash, lines: lines.map(line => ({ productId: line.wmsProductId as string, quantity: line.quantity })) });
         const order = await tx.ecomOrder.findUniqueOrThrow({ where: { id: created.id }, select: orderSelect });
         await recordTenantEvent(tx, store.tenantId, null, "ecommerce.order.submitted", order.id, requestId);
         return publicOrder(order, false);
@@ -73,7 +76,8 @@ export function createEcommerceOrders(db: PrismaClient) {
           tx.ecomOrder.findMany({ where, select: orderSelect, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit, skip: offset }),
           tx.ecomOrder.count({ where }),
         ]);
-        return { items: items.map(item => ({ ...item, totalAmount: item.totalAmount.toFixed(2), lines: item.lines.map(line => ({ ...line, unitPrice: line.unitPrice.toFixed(2), lineTotal: line.lineTotal.toFixed(2) })) })), total, limit, offset };
+        const reservationStatuses = await getWmsOrderReservationStatuses(tx, tenantId, items.map(item => item.id));
+        return { items: items.map(item => ({ ...item, reservationStatus: reservationStatuses[item.id] ?? "missing", totalAmount: item.totalAmount.toFixed(2), lines: item.lines.map(line => ({ ...line, unitPrice: line.unitPrice.toFixed(2), lineTotal: line.lineTotal.toFixed(2) })) })), total, limit, offset };
       });
     },
     async detail(actor: Actor, tenantId: string, id: string) {
@@ -83,7 +87,28 @@ export function createEcommerceOrders(db: PrismaClient) {
         if (!store) throw new TenantError(404, "not_found");
         const order = await tx.ecomOrder.findFirst({ where: { tenantId, storeId: store.id, id }, select: orderSelect });
         if (!order) throw new TenantError(404, "not_found");
-        return { ...order, totalAmount: order.totalAmount.toFixed(2), lines: order.lines.map(line => ({ ...line, unitPrice: line.unitPrice.toFixed(2), lineTotal: line.lineTotal.toFixed(2) })) };
+        const reservationStatuses = await getWmsOrderReservationStatuses(tx, tenantId, [id]);
+        return { ...order, reservationStatus: reservationStatuses[id] ?? "missing", totalAmount: order.totalAmount.toFixed(2), lines: order.lines.map(line => ({ ...line, unitPrice: line.unitPrice.toFixed(2), lineTotal: line.lineTotal.toFixed(2) })) };
+      });
+    },
+    async fulfill(actor: Actor, tenantId: string, id: string, shipmentConfirmed: boolean, requestId: string) {
+      return db.$transaction(async tx => {
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, true);
+        const order = await tx.ecomOrder.findFirst({ where: { tenantId, id }, select: { id: true, storeId: true } });
+        if (!order) throw new TenantError(404, "not_found");
+        const result = await fulfillWmsOrderReservation(tx, actor, tenantId, id, shipmentConfirmed, requestId);
+        await recordTenantEvent(tx, tenantId, actor.id, "ecommerce.order.fulfilled", id, requestId);
+        return result;
+      });
+    },
+    async release(actor: Actor, tenantId: string, id: string, stockStillInWarehouseConfirmed: boolean, requestId: string) {
+      return db.$transaction(async tx => {
+        await lockTenant(tx, tenantId); await requireTenantContext(tx, actor, tenantId, true);
+        const order = await tx.ecomOrder.findFirst({ where: { tenantId, id }, select: { id: true, storeId: true } });
+        if (!order) throw new TenantError(404, "not_found");
+        const result = await releaseWmsOrderReservation(tx, actor, tenantId, id, stockStillInWarehouseConfirmed, requestId);
+        await recordTenantEvent(tx, tenantId, actor.id, "ecommerce.order.reservation_released", id, requestId);
+        return result;
       });
     },
   };
