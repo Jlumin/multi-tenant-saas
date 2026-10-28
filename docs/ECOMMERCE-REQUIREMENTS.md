@@ -1,6 +1,6 @@
 # E-Commerce 購物網站需求探索
 
-2026-10-29 使用者指定其餘模組順序為 HR → Restaurant QR/POS → CRM → E-Commerce 金流。支付／退款候選切片為 ECOM-004 / Issue #38；供應商、銷售地區、幣別、支付方法、未付款逾時、取消／退款和稅務／對帳政策未選定，因此 provider-specific 實作先不開始。
+2026-10-29 使用者指定其餘模組順序為 HR → Restaurant QR/POS → CRM → E-Commerce 金流。支付／退款候選切片為 ECOM-004 / Issue #38；供應商、銷售地區、幣別、支付方法、未付款逾時、取消／退款和稅務／對帳政策未選定，因此 provider-specific 實作先不開始。官方資料比較與條件式建議見 [ECOM-004 金流供應商選項](ECOM-004-PAYMENT-PROVIDER-OPTIONS.md)；文件不是商業決定或已實作功能。
 
 狀態：Discovery 草案，對應 ECOM-DISCOVERY-001 / Issue #23。日期：2026-10-28。本文用於整理需求和分期，不代表商業政策已核定或購物網站已實作。
 
