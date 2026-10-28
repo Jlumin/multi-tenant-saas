@@ -14,6 +14,7 @@ export default function Home() {
       <Link href="/ecommerce">E-Commerce 店面與商品目錄</Link>
       <Link href="/hr">HR 員工打卡</Link>
       <Link href="/restaurant">Restaurant QR 點餐與 POS</Link>
+      <Link href="/crm">CRM 會員目錄</Link>
       <aside>專案、倉儲主檔、E-Commerce 商品目錄、HR 與 Restaurant 已加入；目前為本機測試版本。</aside>
     </main>
   );

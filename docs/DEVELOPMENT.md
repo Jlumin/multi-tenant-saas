@@ -1,6 +1,6 @@
 # 本機開發與驗證
 
-BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL 與 CI；AUTH-001 新增 Google／電子郵件密碼身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。PROJECTS-001 新增 [Project 專案管理](PROJECTS.md)；WMS、E-Commerce 與 HR 目前已有可供 review 的增量交付，細節見各需求與驗證文件。Restaurant QR/POS、CRM、付款、RLS、Agent 與正式部署尚待規劃。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
+BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL 與 CI；AUTH-001 新增 Google／電子郵件密碼身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。PROJECTS-001 新增 [Project 專案管理](PROJECTS.md)；WMS、E-Commerce、HR 及 Restaurant QR/POS 已有可 review 的增量交付；CRM-001 正在建立 CRM 會員目錄。各切片及假設見其需求與驗證文件。付款、RLS、Agent 與正式部署尚未完成。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
 
 ## 先決條件與安裝
 
