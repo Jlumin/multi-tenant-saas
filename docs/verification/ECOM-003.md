@@ -1,6 +1,6 @@
 # ECOM-003 WMS inventory integration verification
 
-Date: 2026-10-28. Issue #30. Branch: `feat/ecommerce-003-inventory`, based on `docs/ecommerce-wms-discovery-001`. Draft PR and GitHub Actions are pending publication.
+Date: 2026-10-28. Issue #30. Branch: `feat/ecommerce-003-inventory`, based on `docs/ecommerce-wms-discovery-001`. Draft PR: [#31](https://github.com/Jlumin/multi-tenant-saas/pull/31), targeting the discovery branch until it is merged.
 
 ## Delivered
 
@@ -26,7 +26,7 @@ Date: 2026-10-28. Issue #30. Branch: `feat/ecommerce-003-inventory`, based on `d
 | Existing dev server HTTP check | PASS: `http://127.0.0.1:3001/` and `/api/health` returned 200; POST health returned 405 |
 | Auth HTTP smoke with PostgreSQL and Mailpit | PASS: signup, verification, invitations, tenant/project flows, E-Commerce checkout, WMS receipt and real restock email/unsubscribe |
 | Docker Compose | PASS: `docker compose config --quiet`; PostgreSQL 17.11 and Mailpit 1.32.0 containers healthy |
-| GitHub Actions | Pending: feature branch has not yet been pushed |
+| GitHub Actions | PASS: `verify` job completed, including clean `npm ci`, lint, typecheck, unit/integration tests, DB validation/smoke, dev/prod HTTP smoke and production build |
 
 The standalone dev HTTP smoke could not start a second Next dev server because this workspace already has the user's development server running at port 3001 (Next.js refused a second process using the same `.next/dev` output). The existing server's equivalent homepage and health checks passed above; it was left running.
 
@@ -35,5 +35,5 @@ The standalone dev HTTP smoke could not start a second Next dev server because t
 - There is no payment flow, automatic reservation expiry, partial fulfillment, or shipped-return workflow UI. A shipped return must be posted as WMS inbound/return before it is available again. Owner release is only for an unshipped order whose stock is still physically present.
 - Restock retry is event-driven by a later WMS inbound/opening post; there is no scheduled worker. SMTP was exercised through local Mailpit, not a production mail provider.
 - Subscription email is retained in PostgreSQL to deliver the notice. Retention/deletion policy and production customer-data use remain outside this issue.
-- npm is unavailable in this local shell, so `npm ci` was not rerun. Existing `node_modules` and lockfile were used for all direct CLI checks; GitHub Actions will validate the clean install.
+- npm is unavailable in this local shell, so `npm ci` was not rerun locally. GitHub Actions completed clean `npm ci` successfully. Its only annotation is an informational notice that `ubuntu-latest` will migrate to Ubuntu 26.
 - Manual browser acceptance remains available for the user before merge. No merge or deployment was performed.
