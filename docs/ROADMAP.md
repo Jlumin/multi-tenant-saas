@@ -19,7 +19,7 @@
 | ECOM-003 Discovery #28 | WMS 商品關聯、可售量定義、預留／釋回契約與失敗補償規格 | Draft PR #29 文件探索；Owner 已確認商品必映射、單店單一出貨倉、缺貨拒單／到貨通知、實際回庫後恢復可售 | ECOM-002、WMS-001–005；文件-only |
 | ECOM-003 implementation #30 | WMS SKU mapping、單倉可售量／預留、缺貨拒單與到貨通知、跨倉調撥開關 | Draft PR #31；GitHub Actions 最新 head 全綠；等待人工驗收與 PR 審查，尚未合併 | ECOM-003 Discovery #28 / PR #29、ECOM-001/002、WMS-001–005 |
 | HR-001 #32 | 租戶員工名冊、本人 server-time 上下班打卡、Owner 出勤查詢與 append-only 更正 | Draft PR #33；GitHub Actions run #40721476910 全綠；等待人工驗收與 PR 審查，尚未合併；產品假設待整體試用確認 | 使用者排列順序第 1；M1 membership／tenant boundary |
-| RESTAURANT-001 #34 | 餐廳菜單／桌位 QR、訪客點餐及店員 POS 訂單狀態 | 本機實作與 PostgreSQL 驗證完成（89 integration tests）；Draft PR／CI 待送出；Owner 管理，Owner／Member 處理訂單 | 使用者排列順序第 2；M1 membership／tenant boundary；PR 以 HR-001 分支為 base |
+| RESTAURANT-001 #34 | 餐廳菜單／桌位 QR、訪客點餐及店員 POS 訂單狀態 | Draft PR #35；本機 89 項 PostgreSQL integration 通過，GitHub Actions #40724000847 全綠；待人工試用與 PR 審查 | 使用者排列順序第 2；M1 membership／tenant boundary；PR 以 HR-001 分支為 base |
 | M3 / 待開 Issue | 部署、備份還原、監控、安全與產品試用 | 部署與復原演練、上線條件審查 | 部署供應商、資料政策、M2 |
 
 2026-10-27 進度：M0 PR #3、AUTH-001 PR #5、TENANCY-001 PR #7、PROJECTS-001 PR #10 均已提出 Draft。Project commit 96c14dc 的 GitHub Actions #6 已 success，本機45項測試與 production HTTP流程通過，並完成新增／編輯／刪除確認及取消的瀏覽器操作，見 [Project 驗證](verification/PROJECTS-001.md)。WMS-001 Draft PR #14 的 CI 已通過；WMS-002 Issue #15 已完成並提出 Draft PR #16（以 feat/wms-001 為 base），CI #11/#12 成功；Owner-only 過帳、禁止負庫存、期初庫存另開階段。WMS-003 Issue #17 已提出 Draft PR #18。WMS-004 Issue #19 已提出 Draft PR #20，Actions #17/#18 通過；即時調撥仍待產品確認且人工瀏覽器驗收未做。延後的邀請真人補驗仍追蹤 QA-001 / #8；PR 審查未完成前不宣告正式上線。
