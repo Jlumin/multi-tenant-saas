@@ -17,6 +17,13 @@
 - E-Commerce 未選供貨倉；將多倉量直接加總可能導致無法履約或錯誤承諾。
 - 此 Issue 將上述內容分類為待產品決策，先不替使用者設定正式交易政策。
 
+## Owner 確認（2026-10-28）
+
+- 每件商品必須映射同租戶 WMS 商品；每店指定個別出貨倉，跨倉調撥預設關閉但提供開關。
+- 缺貨顯示缺貨並禁止 checkout；顧客可 opt-in 到貨 email 通知。
+- 需要回庫的商品，待實際回倉並完成 WMS 入庫／退回過帳後才恢復可售。
+- 對應實作 Issue #30；付款及正式 SMTP 不在範圍。reservation TTL、未出貨取消確認、未分配儲位與跨倉開關的具體互動列為 Issue #30 驗收設計限制。
+
 ## 驗證方式
 
 - 文件交叉比對 `src/server/ecommerce/orders.ts`、`src/server/wms/stock-service.ts`、`prisma/schema.prisma`、WMS ADR 0006 與 E-Commerce/WMS requirements。
