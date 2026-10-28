@@ -1,6 +1,6 @@
 # 本機開發與驗證
 
-BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL tenants schema 與 CI；AUTH-001 新增 Google／電子郵件密碼的身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。PROJECTS-001 新增 [Project 專案管理](PROJECTS.md)，需套用第四份 migration；WMS、RLS、Agent 與正式部署尚未實作。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
+BOOTSTRAP-001 建立 Web、健康檢查、PostgreSQL 與 CI；AUTH-001 新增 Google／電子郵件密碼身分整合，見 [AUTH 開發指南](AUTHENTICATION.md)。TENANCY-001 加入租戶選擇、Owner/Member 與邀請，見 [TENANCY 指南](TENANCY.md)。PROJECTS-001 新增 [Project 專案管理](PROJECTS.md)；WMS、E-Commerce 與 HR 目前已有可供 review 的增量交付，細節見各需求與驗證文件。Restaurant QR/POS、CRM、付款、RLS、Agent 與正式部署尚待規劃。保留根目錄 README 原內容；初始工具鏈見 [ADR 0001](adr/0001-bootstrap-toolchain.md)。
 
 ## 先決條件與安裝
 
@@ -111,4 +111,4 @@ npm run db:down
 - health 200 但 DB 失敗：這是預期分工，health 不驗證資料庫，另跑 db:smoke。
 - CI 無執行結果：確認 Actions 啟用，若外部 PR 需要批准，由維護者處理；未執行不能標示通過。
 
-本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。真實 Google 登入已人工確認；邀請寄信真人補驗依使用者要求延後至整體建置完成，追蹤 QA-001 / #8；不代表正式郵件或部署已驗收。Project 介面位於 /projects；WMS 入出庫測試介面位於 /wms/stock。test:auth 包含 PostgreSQL tenant、Project 與 WMS 隔離測試，HTTP/SMTP smoke 也涵蓋 WMS 一般入庫過帳、冪等重播、禁止負庫存與 Owner-only 過帳。
+本機驗證與 PR CI 證據見 verification/ 的各 Issue 報告。真實 Google 登入已人工確認；邀請寄信真人補驗依使用者要求延後至整體建置完成，追蹤 QA-001 / #8；不代表正式郵件或部署已驗收。介面位於 /projects、/wms、/wms/stock、/ecommerce 與 /hr。test:auth 包含 PostgreSQL tenant、Project、WMS、E-Commerce 與 HR 隔離測試；HTTP/SMTP smoke 涵蓋 WMS 過帳及 E-Commerce 結帳／到貨通知流程。
