@@ -41,6 +41,8 @@ WMS 與 E-Commerce 的商品映射、指定倉庫可售量、原子 reservation�
 
 HR-001 由 `hr` 擁有 `hr_employees`、`hr_attendance`、`hr_attendance_adjustments` 與 `hr_tenant_settings`。員工必須對應同租戶 active membership；HR 透過 tenancy public service 取得成員資料，不自行寫 membership。打卡只允許已登入本人、以 server timestamp 記錄；PostgreSQL 限制每人僅一筆未下班紀錄。Owner 更正採 append-only adjustment 與 tenant audit。HR 時區初始值 `Asia/Taipei` 是待最後產品確認的預設。細節見 [HR 需求](HR-REQUIREMENTS.md)。
 
+RESTAURANT-001 由 `restaurant` 擁有 restaurant/menu/table/order tables。每 tenant 限一間餐廳；桌位 QR 只儲存 256-bit token 的 SHA-256 digest，公開服務以 digest 定位啟用桌位並回傳上架菜單。公開送單只接受商品 ID／整數數量與冪等 key；服務端重查價格並同交易寫訂單快照及匿名 tenant audit。Owner 管理主檔；Owner／Member 經 tenant membership 授權操作 POS。PostgreSQL 複合外鍵、append-only snapshot trigger、延遲總額驗證及狀態轉換 trigger 保護訂單。此切片沒有付款、WMS、CRM、KDS 或硬體整合。細節見 [Restaurant 需求](RESTAURANT-REQUIREMENTS.md)。
+
 ## 健康檢查
 M0 GET /api/health 僅回傳固定狀態且 HTTP 200，不公開環境、版本、連線字串或租戶資料。
 這是 liveness，不代表資料庫 readiness；資料庫連通性由獨立本機／CI smoke test 證明。

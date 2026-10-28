@@ -60,7 +60,7 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 16);
+  assert.equal(history.length, 17);
   const wmsTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['wms_documents','wms_document_lines','wms_stock_balances','wms_stock_movements','wms_posting_keys','wms_stock_counts','wms_stock_count_lines','wms_opening_entries','wms_tenant_settings','wms_stock_reservations','wms_stock_reservation_lines']) AS name ORDER BY table_name")).rows;
   assert.equal(wmsTables.length, 11);
   assert.ok(wmsTables.every(row => row.table_name !== null));
@@ -70,6 +70,9 @@ try {
   const hrTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['hr_employees','hr_attendance','hr_attendance_adjustments','hr_tenant_settings']) AS name ORDER BY table_name")).rows;
   assert.equal(hrTables.length, 4);
   assert.ok(hrTables.every(row => row.table_name !== null));
+  const restaurantTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['restaurants','restaurant_menu_categories','restaurant_menu_items','restaurant_tables','restaurant_orders','restaurant_order_lines']) AS name ORDER BY table_name")).rows;
+  assert.equal(restaurantTables.length, 6);
+  assert.ok(restaurantTables.every(row => row.table_name !== null));
   assert.equal((await database.query("SELECT count(*)::int AS total FROM information_schema.columns WHERE table_schema='public' AND ((table_name='wms_documents' AND column_name='destination_warehouse_id') OR (table_name='wms_document_lines' AND column_name IN ('target_warehouse_id','target_location_id')))")).rows[0].total, 3);
   assert.ok((await database.query("SELECT enumlabel FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='WmsDocumentType' AND enumlabel='transfer'")).rows.length === 1);
   assert.ok((await database.query("SELECT count(*)::int AS total FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='WmsDocumentType' AND enumlabel IN ('opening','adjustment')")).rows[0].total === 2);
@@ -79,7 +82,7 @@ try {
   prisma(["migrate", "status"], targetURL);
   prisma(["migrate", "diff", "--from-config-datasource", "--to-schema", "prisma/schema.prisma", "--exit-code"], targetURL);
   assert.equal((await database.query("SELECT count(*)::int AS total FROM tenants")).rows[0].total, 2);
-  console.log("PASS: fresh PostgreSQL migration, WMS/E-Commerce/HR schema including guest orders and attendance guards, UUID/time defaults, NOT NULL/PK/slug uniqueness, second deploy unchanged, schema drift absent.");
+  console.log("PASS: fresh PostgreSQL migration, WMS/E-Commerce/HR/Restaurant schema including QR orders and attendance guards, UUID/time defaults, NOT NULL/PK/slug uniqueness, second deploy unchanged, schema drift absent.");
 } catch (error) {
   console.error(error instanceof assert.AssertionError ? `DB smoke assertion failed: ${error.message}` : "DB smoke failed; check PostgreSQL connectivity, CREATEDB permission and Prisma compatibility. Secrets suppressed.");
   process.exitCode = 1;
