@@ -27,6 +27,10 @@ model Tenant {
   ecomProducts             EcomProduct[]
   ecomOrders               EcomOrder[]
   ecomRestockSubscriptions EcomRestockSubscription[]
+  hrEmployees              HrEmployee[]
+  hrAttendance             HrAttendance[]
+  hrAttendanceAdjustments  HrAttendanceAdjustment[]
+  hrSettings               HrTenantSetting?
 
   @@map("tenants")
 }
@@ -106,16 +110,19 @@ enum MembershipRole {
 }
 
 model Membership {
-  tenantId     String         @map("tenant_id") @db.Uuid
-  userId       String         @map("user_id") @db.Uuid
-  role         MembershipRole @default(member)
-  isActive     Boolean        @default(true) @map("is_active")
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  invitations  Invitation[]
-  projects     Project[]
-  ecomProducts EcomProduct[]
+  tenantId                String                   @map("tenant_id") @db.Uuid
+  userId                  String                   @map("user_id") @db.Uuid
+  role                    MembershipRole           @default(member)
+  isActive                Boolean                  @default(true) @map("is_active")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invitations             Invitation[]
+  projects                Project[]
+  ecomProducts            EcomProduct[]
+  hrEmployee              HrEmployee?              @relation("HrEmployeeMember")
+  hrEmployeesCreated      HrEmployee[]             @relation("HrEmployeeCreator")
+  hrAttendanceAdjustments HrAttendanceAdjustment[] @relation("HrAttendanceAdjustmentActor")
 
   @@id([tenantId, userId])
   @@index([userId, isActive])
@@ -664,4 +671,73 @@ model EcomRestockSubscription {
   @@unique([tenantId, storeId, productId, emailHash])
   @@index([tenantId, storeId, productId, status])
   @@map("ecom_restock_subscriptions")
+}
+
+model HrEmployee {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  staffNumber String?        @map("staff_number") @db.VarChar(40)
+  isActive    Boolean        @default(true) @map("is_active")
+  version     Int            @default(1)
+  createdById String         @map("created_by_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  membership  Membership     @relation("HrEmployeeMember", fields: [tenantId, userId], references: [tenantId, userId], onDelete: Restrict)
+  creator     Membership     @relation("HrEmployeeCreator", fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
+  attendance  HrAttendance[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@unique([tenantId, staffNumber])
+  @@index([tenantId, isActive, createdAt])
+  @@map("hr_employees")
+}
+
+model HrAttendance {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                   @map("tenant_id") @db.Uuid
+  userId      String                   @map("user_id") @db.Uuid
+  clockInAt   DateTime                 @default(now()) @map("clock_in_at") @db.Timestamptz(3)
+  clockOutAt  DateTime?                @map("clock_out_at") @db.Timestamptz(3)
+  clockInKey  String                   @map("clock_in_key") @db.VarChar(128)
+  clockOutKey String?                  @map("clock_out_key") @db.VarChar(128)
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee    HrEmployee               @relation(fields: [tenantId, userId], references: [tenantId, userId], onDelete: Restrict)
+  adjustments HrAttendanceAdjustment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, clockInKey])
+  @@unique([tenantId, clockOutKey])
+  @@index([tenantId, userId, clockInAt])
+  @@map("hr_attendance")
+}
+
+model HrAttendanceAdjustment {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  attendanceId String       @map("attendance_id") @db.Uuid
+  field        String       @db.VarChar(20)
+  previousAt   DateTime?    @map("previous_at") @db.Timestamptz(3)
+  correctedAt  DateTime     @map("corrected_at") @db.Timestamptz(3)
+  reason       String       @db.VarChar(500)
+  createdById  String       @map("created_by_id") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  attendance   HrAttendance @relation(fields: [tenantId, attendanceId], references: [tenantId, id], onDelete: Restrict)
+  creator      Membership   @relation("HrAttendanceAdjustmentActor", fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
+
+  @@index([tenantId, attendanceId, field, createdAt])
+  @@map("hr_attendance_adjustments")
+}
+
+model HrTenantSetting {
+  tenantId  String   @id @map("tenant_id") @db.Uuid
+  timeZone  String   @default("Asia/Taipei") @map("time_zone") @db.VarChar(64)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("hr_tenant_settings")
 }
