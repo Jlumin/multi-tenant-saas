@@ -17,7 +17,7 @@
 | ECOM-001 #25 | 租戶店面、商品目錄管理及公開商品瀏覽 | 實作與 PostgreSQL 驗證完成，Draft PR 以 `docs/ecommerce-discovery-001` 為 base；店數、幣別、權限與商品型態為暫定決策，待產品確認 | ECOM-DISCOVERY-001；不含訂單、付款、WMS 庫存整合 |
 | ECOM-002 #26 | browser cart、訪客 checkout、server 價格快照、冪等防重、Owner-only 訂單檢視 | Draft PR #27 以 `feat/ecommerce-001` 為 base；本機驗證及 GitHub Actions runs #31–#32 通過；產品暫定政策與買家資料保存期限待最後確認 | ECOM-001；不含付款、稅、運費、CRM、WMS 庫存與正式營運 |
 | ECOM-003 Discovery #28 | WMS 商品關聯、可售量定義、預留／釋回契約與失敗補償規格 | Draft PR #29 文件探索；Owner 已確認商品必映射、單店單一出貨倉、缺貨拒單／到貨通知、實際回庫後恢復可售 | ECOM-002、WMS-001–005；文件-only |
-| ECOM-003 implementation #30 | WMS SKU mapping、單倉可售量／預留、缺貨拒單與到貨通知、跨倉調撥開關 | Open Issue；PR 以 `docs/ecommerce-wms-discovery-001` 為 base；預設禁跨倉，通知與 reservation 需冪等及可稽核 | ECOM-003 Discovery #28 / PR #29、ECOM-001/002、WMS-001–005 |
+| ECOM-003 implementation #30 | WMS SKU mapping、單倉可售量／預留、缺貨拒單與到貨通知、跨倉調撥開關 | 本地實作與 PostgreSQL 驗證完成，待 Draft PR 及 CI；base 為 `docs/ecommerce-wms-discovery-001` | ECOM-003 Discovery #28 / PR #29、ECOM-001/002、WMS-001–005 |
 | M3 / 待開 Issue | 部署、備份還原、監控、安全與產品試用 | 部署與復原演練、上線條件審查 | 部署供應商、資料政策、M2 |
 
 2026-10-27 進度：M0 PR #3、AUTH-001 PR #5、TENANCY-001 PR #7、PROJECTS-001 PR #10 均已提出 Draft。Project commit 96c14dc 的 GitHub Actions #6 已 success，本機45項測試與 production HTTP流程通過，並完成新增／編輯／刪除確認及取消的瀏覽器操作，見 [Project 驗證](verification/PROJECTS-001.md)。WMS-001 Draft PR #14 的 CI 已通過；WMS-002 Issue #15 已完成並提出 Draft PR #16（以 feat/wms-001 為 base），CI #11/#12 成功；Owner-only 過帳、禁止負庫存、期初庫存另開階段。WMS-003 Issue #17 已提出 Draft PR #18。WMS-004 Issue #19 已提出 Draft PR #20，Actions #17/#18 通過；即時調撥仍待產品確認且人工瀏覽器驗收未做。延後的邀請真人補驗仍追蹤 QA-001 / #8；PR 審查未完成前不宣告正式上線。

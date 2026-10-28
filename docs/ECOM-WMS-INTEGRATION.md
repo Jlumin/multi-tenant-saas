@@ -1,8 +1,16 @@
 # E-Commerce × WMS 整合探索
 
-狀態：ECOM-003 Discovery / Issue #28。此文件用來定義契約候選與產品決策，不代表已核定庫存政策或已實作整合。日期：2026-10-28。
+狀態：ECOM-003 Discovery #28 的決策已確認；implementation Issue #30 正在 `feat/ecommerce-003-inventory` 實作。下方舊版探索紀錄保留作決策來源，最新行為見「ECOM-003 實作」及驗證報告。
 
-## 目前實作事實
+## ECOM-003 實作
+
+- 每店選一個同租戶 WMS 出貨倉；E-Commerce 商品必須映射一個同租戶有效 WMS SKU。跨倉調撥由 Owner 設定，預設關閉；庫存不跨倉加總。
+- WMS service contract 維護可售量及訂單 reservation。Checkout 在同一 PostgreSQL transaction 中建立 immutable order snapshot 並預留整數基本單位；同租戶鎖序列化 checkout 與 WMS 過帳，避免最後一件超賣。
+- WMS Owner 確認已出貨後，WMS contract 建立 outbound posting 並同交易履約預留。釋放 reservation 須 Owner 確認實物已回倉；釋放不增加 on-hand，須另完成 WMS inbound/return 過帳才重新可售。不使用自動 TTL。
+- 缺貨商品提供明確 opt-in email 訂閱。WMS inbound/opening 過帳後若指定店倉可售量轉正，通知服務寄信；失敗保留 active 訂閱，下次到貨事件可重試；信件提供互動式退訂。SMTP 使用既有 adapter，正式送信仍未驗收。
+- Ecom 訂單快照不變；履約／釋回以 WMS 狀態及 append-only tenant audit 表示。跨模組讀寫經 public service contract，不設 WMS/E-Commerce 交叉外鍵。
+
+## Discovery 時的實作事實
 
 - ECOM-001 的 `EcomProduct` 擁有買家可見商品、代碼及售價；目前沒有 WMS SKU 關聯。
 - ECOM-002 的訪客訂單狀態為 `submitted`，建立後的訂單與明細快照不可變；沒有取消、付款、履約或庫存預留狀態。

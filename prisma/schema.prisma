@@ -3,26 +3,30 @@ datasource db {
 }
 
 model Tenant {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String
-  slug              String             @unique
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  isActive          Boolean            @default(true) @map("is_active")
-  memberships       Membership[]
-  invitations       Invitation[]
-  auditEvents       TenantAudit[]
-  projects          Project[]
-  wmsProducts       WmsProduct[]
-  wmsWarehouses     WmsWarehouse[]
-  wmsDocuments      WmsDocument[]
-  wmsStockCounts    WmsStockCount[]
-  wmsOpeningEntries WmsOpeningEntry[]
-  wmsBalances       WmsStockBalance[]
-  wmsMovements      WmsStockMovement[]
-  wmsPostingKeys    WmsPostingKey[]
-  ecomStore         EcomStore?
-  ecomProducts      EcomProduct[]
-  ecomOrders        EcomOrder[]
+  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String
+  slug                     String                    @unique
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  isActive                 Boolean                   @default(true) @map("is_active")
+  memberships              Membership[]
+  invitations              Invitation[]
+  auditEvents              TenantAudit[]
+  projects                 Project[]
+  wmsProducts              WmsProduct[]
+  wmsWarehouses            WmsWarehouse[]
+  wmsDocuments             WmsDocument[]
+  wmsStockCounts           WmsStockCount[]
+  wmsOpeningEntries        WmsOpeningEntry[]
+  wmsBalances              WmsStockBalance[]
+  wmsMovements             WmsStockMovement[]
+  wmsPostingKeys           WmsPostingKey[]
+  wmsReservations          WmsStockReservation[]
+  wmsReservationLines      WmsStockReservationLine[]
+  wmsSettings              WmsTenantSetting?
+  ecomStore                EcomStore?
+  ecomProducts             EcomProduct[]
+  ecomOrders               EcomOrder[]
+  ecomRestockSubscriptions EcomRestockSubscription[]
 
   @@map("tenants")
 }
@@ -170,22 +174,23 @@ model TenantAudit {
 }
 
 model WmsProduct {
-  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String              @map("tenant_id") @db.Uuid
-  code            String              @map("sku") @db.VarChar(40)
-  name            String              @db.VarChar(120)
-  baseUnit        String              @map("base_unit") @db.VarChar(20)
-  isActive        Boolean             @default(true) @map("is_active")
-  version         Int                 @default(1)
-  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  units           WmsProductUnit[]
-  documentLines   WmsDocumentLine[]
-  stockBalances   WmsStockBalance[]
-  stockMovements  WmsStockMovement[]
-  stockCountLines WmsStockCountLine[]
-  openingEntries  WmsOpeningEntry[]
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                    @map("tenant_id") @db.Uuid
+  code             String                    @map("sku") @db.VarChar(40)
+  name             String                    @db.VarChar(120)
+  baseUnit         String                    @map("base_unit") @db.VarChar(20)
+  isActive         Boolean                   @default(true) @map("is_active")
+  version          Int                       @default(1)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant           Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  units            WmsProductUnit[]
+  documentLines    WmsDocumentLine[]
+  stockBalances    WmsStockBalance[]
+  stockMovements   WmsStockMovement[]
+  stockCountLines  WmsStockCountLine[]
+  openingEntries   WmsOpeningEntry[]
+  reservationLines WmsStockReservationLine[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
@@ -215,23 +220,25 @@ model WmsProductUnit {
 }
 
 model WmsWarehouse {
-  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String             @map("tenant_id") @db.Uuid
-  code                 String             @db.VarChar(40)
-  name                 String             @db.VarChar(120)
-  isActive             Boolean            @default(true) @map("is_active")
-  stockRevision        BigInt             @default(0) @map("stock_revision")
-  version              Int                @default(1)
-  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                    @map("tenant_id") @db.Uuid
+  code                 String                    @db.VarChar(40)
+  name                 String                    @db.VarChar(120)
+  isActive             Boolean                   @default(true) @map("is_active")
+  stockRevision        BigInt                    @default(0) @map("stock_revision")
+  version              Int                       @default(1)
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   locations            WmsLocation[]
   documents            WmsDocument[]
-  destinationDocuments WmsDocument[]      @relation("WmsDocumentDestination")
+  destinationDocuments WmsDocument[]             @relation("WmsDocumentDestination")
   stockBalances        WmsStockBalance[]
   stockMovements       WmsStockMovement[]
   stockCounts          WmsStockCount[]
   openingEntries       WmsOpeningEntry[]
+  reservations         WmsStockReservation[]
+  reservationLines     WmsStockReservationLine[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
@@ -240,23 +247,24 @@ model WmsWarehouse {
 }
 
 model WmsLocation {
-  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String              @map("tenant_id") @db.Uuid
-  warehouseId         String              @map("warehouse_id") @db.Uuid
-  code                String              @db.VarChar(40)
-  name                String              @db.VarChar(120)
-  isDefault           Boolean             @default(false) @map("is_default")
-  isActive            Boolean             @default(true) @map("is_active")
-  version             Int                 @default(1)
-  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  warehouse           WmsWarehouse        @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                    @map("tenant_id") @db.Uuid
+  warehouseId         String                    @map("warehouse_id") @db.Uuid
+  code                String                    @db.VarChar(40)
+  name                String                    @db.VarChar(120)
+  isDefault           Boolean                   @default(false) @map("is_default")
+  isActive            Boolean                   @default(true) @map("is_active")
+  version             Int                       @default(1)
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  warehouse           WmsWarehouse              @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
   documentLines       WmsDocumentLine[]
-  targetDocumentLines WmsDocumentLine[]   @relation("WmsLineTargetLocation")
+  targetDocumentLines WmsDocumentLine[]         @relation("WmsLineTargetLocation")
   stockBalances       WmsStockBalance[]
   stockMovements      WmsStockMovement[]
   stockCountLines     WmsStockCountLine[]
   openingEntries      WmsOpeningEntry[]
+  reservationLines    WmsStockReservationLine[]
 
   @@unique([tenantId, warehouseId, id])
   @@unique([tenantId, warehouseId, code])
@@ -478,44 +486,105 @@ model WmsPostingKey {
   @@map("wms_posting_keys")
 }
 
+model WmsTenantSetting {
+  tenantId                     String   @id @map("tenant_id") @db.Uuid
+  allowInterWarehouseTransfers Boolean  @default(false) @map("allow_inter_warehouse_transfers")
+  version                      Int      @default(1)
+  updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant                       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("wms_tenant_settings")
+}
+
+enum WmsStockReservationStatus {
+  active
+  fulfilled
+  released
+}
+
+model WmsStockReservation {
+  id                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                    @map("tenant_id") @db.Uuid
+  warehouseId        String                    @map("warehouse_id") @db.Uuid
+  sourceOrderId      String                    @map("source_order_id") @db.Uuid
+  status             WmsStockReservationStatus @default(active)
+  idempotencyKeyHash String                    @map("idempotency_key_hash") @db.Char(64)
+  payloadHash        String                    @map("payload_hash") @db.Char(64)
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  warehouse          WmsWarehouse              @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  lines              WmsStockReservationLine[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKeyHash])
+  @@unique([tenantId, sourceOrderId])
+  @@index([tenantId, warehouseId, status])
+  @@map("wms_stock_reservations")
+}
+
+model WmsStockReservationLine {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  reservationId String              @map("reservation_id") @db.Uuid
+  productId     String              @map("product_id") @db.Uuid
+  warehouseId   String              @map("warehouse_id") @db.Uuid
+  locationId    String              @map("location_id") @db.Uuid
+  quantity      Int
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  reservation   WmsStockReservation @relation(fields: [tenantId, reservationId], references: [tenantId, id], onDelete: Restrict)
+  product       WmsProduct          @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  warehouse     WmsWarehouse        @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  location      WmsLocation         @relation(fields: [tenantId, warehouseId, locationId], references: [tenantId, warehouseId, id], onDelete: Restrict)
+
+  @@unique([tenantId, reservationId, productId, locationId])
+  @@index([tenantId, warehouseId, productId, locationId])
+  @@map("wms_stock_reservation_lines")
+}
+
 model EcomStore {
-  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String        @unique @map("tenant_id") @db.Uuid
-  name      String        @db.VarChar(120)
-  slug      String        @unique @db.VarChar(64)
-  currency  String        @db.Char(3)
-  isActive  Boolean       @default(true) @map("is_active")
-  version   Int           @default(1)
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  products  EcomProduct[]
-  orders    EcomOrder[]
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                    @unique @map("tenant_id") @db.Uuid
+  name                 String                    @db.VarChar(120)
+  slug                 String                    @unique @db.VarChar(64)
+  currency             String                    @db.Char(3)
+  warehouseId          String?                   @map("warehouse_id") @db.Uuid
+  isActive             Boolean                   @default(true) @map("is_active")
+  version              Int                       @default(1)
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  products             EcomProduct[]
+  orders               EcomOrder[]
+  restockSubscriptions EcomRestockSubscription[]
 
   @@unique([tenantId, id])
   @@map("ecom_stores")
 }
 
 model EcomProduct {
-  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String          @map("tenant_id") @db.Uuid
-  storeId     String          @map("store_id") @db.Uuid
-  createdById String          @map("created_by_id") @db.Uuid
-  code        String          @db.VarChar(40)
-  name        String          @db.VarChar(120)
-  description String          @default("") @db.VarChar(2000)
-  price       Decimal         @db.Decimal(12, 2)
-  isPublished Boolean         @default(false) @map("is_published")
-  version     Int             @default(1)
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  store       EcomStore       @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
-  creator     Membership      @relation(fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
-  orderLines  EcomOrderLine[]
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                    @map("tenant_id") @db.Uuid
+  storeId              String                    @map("store_id") @db.Uuid
+  createdById          String                    @map("created_by_id") @db.Uuid
+  code                 String                    @db.VarChar(40)
+  name                 String                    @db.VarChar(120)
+  description          String                    @default("") @db.VarChar(2000)
+  price                Decimal                   @db.Decimal(12, 2)
+  wmsProductId         String?                   @map("wms_product_id") @db.Uuid
+  isPublished          Boolean                   @default(false) @map("is_published")
+  version              Int                       @default(1)
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  store                EcomStore                 @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
+  creator              Membership                @relation(fields: [tenantId, createdById], references: [tenantId, userId], onDelete: Restrict)
+  orderLines           EcomOrderLine[]
+  restockSubscriptions EcomRestockSubscription[]
 
   @@unique([tenantId, storeId, id])
   @@unique([tenantId, storeId, code])
+  @@unique([tenantId, storeId, wmsProductId])
   @@index([tenantId, storeId, isPublished, createdAt, id])
   @@map("ecom_products")
 }
@@ -549,20 +618,50 @@ model EcomOrder {
 }
 
 model EcomOrderLine {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String      @map("tenant_id") @db.Uuid
-  storeId     String      @map("store_id") @db.Uuid
-  orderId     String      @map("order_id") @db.Uuid
-  productId   String      @map("product_id") @db.Uuid
-  productCode String      @map("product_code") @db.VarChar(40)
-  productName String      @map("product_name") @db.VarChar(120)
-  quantity    Int
-  unitPrice   Decimal     @map("unit_price") @db.Decimal(12, 2)
-  lineTotal   Decimal     @map("line_total") @db.Decimal(12, 2)
-  order       EcomOrder   @relation(fields: [tenantId, orderId, storeId], references: [tenantId, id, storeId], onDelete: Restrict)
-  product     EcomProduct @relation(fields: [tenantId, storeId, productId], references: [tenantId, storeId, id], onDelete: Restrict)
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  storeId      String      @map("store_id") @db.Uuid
+  orderId      String      @map("order_id") @db.Uuid
+  productId    String      @map("product_id") @db.Uuid
+  wmsProductId String?     @map("wms_product_id") @db.Uuid
+  productCode  String      @map("product_code") @db.VarChar(40)
+  productName  String      @map("product_name") @db.VarChar(120)
+  quantity     Int
+  unitPrice    Decimal     @map("unit_price") @db.Decimal(12, 2)
+  lineTotal    Decimal     @map("line_total") @db.Decimal(12, 2)
+  order        EcomOrder   @relation(fields: [tenantId, orderId, storeId], references: [tenantId, id, storeId], onDelete: Restrict)
+  product      EcomProduct @relation(fields: [tenantId, storeId, productId], references: [tenantId, storeId, id], onDelete: Restrict)
 
   @@unique([tenantId, orderId, productId])
   @@index([tenantId, orderId])
   @@map("ecom_order_lines")
+}
+
+enum EcomRestockSubscriptionStatus {
+  active
+  notifying
+  notified
+  unsubscribed
+}
+
+model EcomRestockSubscription {
+  id                   String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                        @map("tenant_id") @db.Uuid
+  storeId              String                        @map("store_id") @db.Uuid
+  productId            String                        @map("product_id") @db.Uuid
+  email                String                        @db.VarChar(254)
+  emailHash            String                        @map("email_hash") @db.Char(64)
+  unsubscribeTokenHash String                        @map("unsubscribe_token_hash") @db.Char(64)
+  status               EcomRestockSubscriptionStatus @default(active)
+  notificationAttempts Int                           @default(0) @map("notification_attempts")
+  createdAt            DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  notifiedAt           DateTime?                     @map("notified_at") @db.Timestamptz(3)
+  tenant               Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  store                EcomStore                     @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
+  product              EcomProduct                   @relation(fields: [tenantId, storeId, productId], references: [tenantId, storeId, id], onDelete: Restrict)
+
+  @@unique([tenantId, storeId, productId, emailHash])
+  @@index([tenantId, storeId, productId, status])
+  @@map("ecom_restock_subscriptions")
 }

@@ -75,6 +75,11 @@ afterAll(async () => {
 });
 
 describe("WMS stock documents and ledger using real sessions and PostgreSQL", () => {
+  it("keeps inter-warehouse transfers disabled by default and lets only Owners enable them", async () => {
+    expect(await stock.settings(actors.ownerA, a)).toMatchObject({ allowInterWarehouseTransfers: false, version: 1 });
+    await expect(stock.updateSettings(actors.member, a, { allowInterWarehouseTransfers: true, version: 1 })).rejects.toMatchObject({ code: "owner_required" });
+    await expect(stock.updateSettings(actors.ownerA, a, { allowInterWarehouseTransfers: true, version: 1 })).resolves.toMatchObject({ allowInterWarehouseTransfers: true, version: 1 });
+  });
   it("refuses anonymous, forged, non-member, and Member posting", async () => {
     const doc = await draft();
     expect((await api("anonymous", `${a}/documents`)).status).toBe(401);
@@ -126,6 +131,7 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     expect((await db.wmsDocument.findUniqueOrThrow({ where: { id: outbound.id } })).status).toBe("draft");
   });
   it("posts cross-warehouse transfers atomically and keeps tenant quantity unchanged", async () => {
+    await stock.updateSettings(actors.ownerA, a, { allowInterWarehouseTransfers: true, version: 1 });
     const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 10); await post(receipt);
     const response = await api("member", `${a}/documents`, "POST", { type: "transfer", warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 4 }] });
     expect(response.status).toBe(201); const transfer = await response.json();
@@ -139,6 +145,7 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     await expect(post(transfer, `replay-${randomUUID()}`)).rejects.toMatchObject({ code: "document_not_postable" });
   });
   it("supports same-warehouse relocation and rejects insufficient or foreign transfer targets", async () => {
+    await stock.updateSettings(actors.ownerA, a, { allowInterWarehouseTransfers: true, version: 1 });
     const physical = await masters.create(actors.ownerA, a, { kind: "locations", parentId: warehouseA }, { code: "A-01", name: "架位 A-01" });
     const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 5); await post(receipt);
     const relocation = await stock.createDraft(actors.member, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA, lines: [{ productId: productA, locationId: locationA, targetLocationId: physical.id, unitId: baseA, quantity: 2 }] });
@@ -263,6 +270,7 @@ describe("WMS stock documents and ledger using real sessions and PostgreSQL", ()
     expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: productA, warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(0);
   });
   it("reverses a transfer as a paired opposite transfer without changing tenant totals", async () => {
+    await stock.updateSettings(actors.ownerA, a, { allowInterWarehouseTransfers: true, version: 1 });
     const receipt = await draft("inbound", "ownerA", a, warehouseA, productA, locationA, baseA, 8); await post(receipt);
     const transfer = await stock.createDraft(actors.ownerA, a, "transfer", { warehouseId: warehouseA, destinationWarehouseId: warehouseA2, lines: [{ productId: productA, locationId: locationA, targetLocationId: locationA2, unitId: baseA, quantity: 3 }] }); await post(transfer);
     const reversal = await stock.reverse(actors.ownerA, a, transfer.id, "放錯倉", `reverse-${randomUUID()}`, randomUUID());

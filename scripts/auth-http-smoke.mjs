@@ -65,8 +65,9 @@ try {
       const inbox = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/messages`)).json();
       for (const message of inbox.messages?.filter(m => m.To?.some(to => to.Address === recipient)) ?? []) {
         const mail = await (await fetch(`${process.env.TEST_MAILPIT_URL}/api/v1/message/${message.ID}`)).json();
-        const link = mail.Text?.match(/https?:\/\/\S+/)?.[0];
-        if (link && new URL(link).pathname === pathname) return link;
+        const links = mail.Text?.match(/https?:\/\/\S+/g) ?? [];
+        const link = links.find(candidate => { try { return new URL(candidate).pathname === pathname; } catch { return false; } });
+        if (link) return link;
       }
       await delay(250);
     }
@@ -128,17 +129,32 @@ try {
   assert.equal((await request(`${base}/api/projects/${secondTenant}/${project.id}`)).status, 404);
   assert.equal((await fetch(`${base}/ecommerce`)).status, 200);
   const storeSlug = `http-shop-${randomUUID()}`;
-  const storeResponse = await request(`${base}/api/ecommerce/${tenantId}/store`, { name: "Fictional HTTP shop", slug: storeSlug, currency: "TWD" });
+  const ecommerceWarehouse = await (await request(`${base}/api/wms/${tenantId}/warehouses`, { code: "ECOM-SITE", name: "Fictional E-Commerce site" })).json();
+  const ecommerceProduct = await (await request(`${base}/api/wms/${tenantId}/products`, { code: "ECOM-PART", name: "Fictional E-Commerce part", baseUnit: "個" })).json();
+  const ecommerceDraftProduct = await (await request(`${base}/api/wms/${tenantId}/products`, { code: "ECOM-DRAFT", name: "Fictional draft product", baseUnit: "個" })).json();
+  const ecommerceRestockProduct = await (await request(`${base}/api/wms/${tenantId}/products`, { code: "ECOM-RESTOCK", name: "Fictional restock item", baseUnit: "個" })).json();
+  const ecommerceLocation = (await (await request(`${base}/api/wms/${tenantId}/warehouses/${ecommerceWarehouse.id}/locations`)).json()).items[0];
+  const ecommerceBaseUnit = (await (await request(`${base}/api/wms/${tenantId}/products/${ecommerceProduct.id}/units`)).json()).items.find(item => item.isBase);
+  const ecomReceipt = await (await request(`${base}/api/wms-stock/${tenantId}/documents`, { type: "inbound", warehouseId: ecommerceWarehouse.id, lines: [{ productId: ecommerceProduct.id, locationId: ecommerceLocation.id, unitId: ecommerceBaseUnit.id, quantity: 2 }] })).json();
+  assert.equal((await request(`${base}/api/wms-stock/${tenantId}/documents/${ecomReceipt.id}/post`, { version: ecomReceipt.version }, "POST", { "Idempotency-Key": `ecom-http-${randomUUID()}` })).status, 200);
+  const storeResponse = await request(`${base}/api/ecommerce/${tenantId}/store`, { name: "Fictional HTTP shop", slug: storeSlug, currency: "TWD", warehouseId: ecommerceWarehouse.id });
   assert.equal(storeResponse.status, 201);
-  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-LIVE", name: "Public HTTP product", description: "Fictional catalog item", price: "120.50", isPublished: true })).status, 201);
-  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-DRAFT", name: "Draft HTTP product", description: "Hidden item", price: "99", isPublished: false })).status, 201);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-LIVE", name: "Public HTTP product", description: "Fictional catalog item", price: "120.50", wmsProductId: ecommerceProduct.id, isPublished: true })).status, 201);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-DRAFT", name: "Draft HTTP product", description: "Hidden item", price: "99", wmsProductId: ecommerceDraftProduct.id, isPublished: false })).status, 201);
+  const restockProductResponse = await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "HTTP-OOS", name: "Public out-of-stock item", description: "Fictional restock item", price: "50", wmsProductId: ecommerceRestockProduct.id, isPublished: true });
+  assert.equal(restockProductResponse.status, 201);
+  const restockProduct = await restockProductResponse.json();
   const publicCatalog = await fetch(`${base}/api/shop/${storeSlug}`);
   assert.equal(publicCatalog.status, 200); assert.equal(publicCatalog.headers.get("cache-control"), "no-store");
-  const publicData = await publicCatalog.json(); assert.equal(publicData.products.length, 1); assert.equal(publicData.products[0].code, "HTTP-LIVE");
+  const publicData = await publicCatalog.json(); assert.equal(publicData.products.length, 2);
+  const liveProduct = publicData.products.find(item => item.code === "HTTP-LIVE"); const outOfStock = publicData.products.find(item => item.code === "HTTP-OOS");
+  assert.equal(liveProduct.availableQuantity, 2); assert.equal(outOfStock.availableQuantity, 0);
+  const restockEmail = `restock-${randomUUID()}@example.test`;
+  assert.equal((await fetch(`${base}/api/shop/${storeSlug}/restock`, { method: "POST", headers: { Origin: base, "Content-Type": "application/json" }, body: JSON.stringify({ productId: restockProduct.id, email: restockEmail, optIn: true }) })).status, 202);
   assert.equal((await fetch(`${base}/shop/${storeSlug}`)).status, 200);
   assert.equal((await fetch(`${base}/ecommerce/orders`)).status, 200);
   const checkoutKey = `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`;
-  const checkoutBody = { buyerName: "Fictional guest", buyerEmail: "guest@example.test", lines: [{ productId: publicData.products[0].id, quantity: 2 }] };
+  const checkoutBody = { buyerName: "Fictional guest", buyerEmail: "guest@example.test", lines: [{ productId: liveProduct.id, quantity: 2 }] };
   async function checkout(body = checkoutBody) {
     return fetch(`${base}/api/shop/${storeSlug}/checkout`, { method: "POST", headers: { Origin: base, "Content-Type": "application/json", "Idempotency-Key": checkoutKey }, body: JSON.stringify(body) });
   }
@@ -152,7 +168,7 @@ try {
   assert.equal((await request(`${base}/api/ecommerce/${tenantId}/orders/${savedOrder.id}`)).status, 200);
   jar.clear(); for (const [key, value] of inviteeCookies) jar.set(key, value);
   assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`)).status, 200);
-  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "MEMBER-TRY", name: "Denied", description: "", price: "1", isPublished: false })).status, 403);
+  assert.equal((await request(`${base}/api/ecommerce/${tenantId}/products`, { code: "MEMBER-TRY", name: "Denied", description: "", price: "1", wmsProductId: ecommerceProduct.id, isPublished: false })).status, 403);
   assert.equal((await request(`${base}/api/ecommerce/${tenantId}/orders`)).status, 403);
   jar.clear(); for (const [key, value] of ownerCookies) jar.set(key, value);
   const wms = `${base}/api/wms/${tenantId}`;
@@ -195,6 +211,14 @@ try {
   const movementDetail = await request(`${base}/api/wms-stock/${tenantId}/movements/${movementPage.items[0].id}`);
   assert.equal(movementDetail.status, 200);
   assert.equal((await movementDetail.json()).line.baseQuantity, 40);
+  const restockLocation = (await (await request(`${wms}/warehouses/${ecommerceWarehouse.id}/locations`)).json()).items[0];
+  const restockBaseUnit = (await (await request(`${wms}/products/${ecommerceRestockProduct.id}/units`)).json()).items.find(item => item.isBase);
+  const restockReceipt = await (await request(stockDocsURL, { type: "inbound", warehouseId: ecommerceWarehouse.id, lines: [{ productId: ecommerceRestockProduct.id, locationId: restockLocation.id, unitId: restockBaseUnit.id, quantity: 3 }] })).json();
+  assert.equal((await request(`${stockDocsURL}/${restockReceipt.id}/post`, { version: restockReceipt.version }, "POST", { "Idempotency-Key": `restock-${randomUUID()}` })).status, 200);
+  const notificationLink = await mailURL(restockEmail, `/shop/${storeSlug}/unsubscribe`);
+  const unsubscribeToken = new URL(notificationLink).searchParams.get("token"); assert.ok(unsubscribeToken);
+  assert.equal((await fetch(notificationLink)).status, 200);
+  assert.equal((await fetch(`${base}/api/shop/${storeSlug}/restock/unsubscribe`, { method: "POST", headers: { Origin: base, "Content-Type": "application/json" }, body: JSON.stringify({ token: unsubscribeToken }) })).status, 200);
   const impossibleResponse = await request(stockDocsURL, { type: "outbound", warehouseId: warehouse.id, lines: [{ productId: product.id, locationId: location.id, unitId: baseUnit.id, quantity: 41 }] });
   assert.equal(impossibleResponse.status, 201);
   const impossible = await impossibleResponse.json();
