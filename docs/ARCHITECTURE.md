@@ -39,6 +39,8 @@ ECOM-002 延伸至 E-Commerce 自有 `ecom_orders`／`ecom_order_lines`。公開
 
 WMS 與 E-Commerce 的商品映射、指定倉庫可售量、原子 reservation、履約、實物回倉釋回及到貨通知見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)。WMS contract 擁有 reservation 與庫存 movement 寫入；E-Commerce 不直接存取 WMS models。跨倉調撥預設關閉且只能經 WMS transfer service；公開目錄不能把其他倉庫數量合併。
 
+ECOM-004A 由 E-Commerce 擁有 `ecom_payment_attempts` 與 append-only `ecom_payment_events`，以複合外鍵綁定自己的 tenant/store/order。內部 payment service 僅接受未來 adapter 驗簽後的 normalized event；重播冪等且終止狀態不可回退。這個前置切片沒有 provider adapter、公開 webhook/payment API、退款、訂單狀態轉換或 WMS reservation 副作用；供應商和交易政策待使用者之後設定。
+
 HR-001 由 `hr` 擁有 `hr_employees`、`hr_attendance`、`hr_attendance_adjustments` 與 `hr_tenant_settings`。員工必須對應同租戶 active membership；HR 透過 tenancy public service 取得成員資料，不自行寫 membership。打卡只允許已登入本人、以 server timestamp 記錄；PostgreSQL 限制每人僅一筆未下班紀錄。Owner 更正採 append-only adjustment 與 tenant audit。HR 時區初始值 `Asia/Taipei` 是待最後產品確認的預設。細節見 [HR 需求](HR-REQUIREMENTS.md)。
 
 RESTAURANT-001 由 `restaurant` 擁有 restaurant/menu/table/order tables。每 tenant 限一間餐廳；桌位 QR 只儲存 256-bit token 的 SHA-256 digest，公開服務以 digest 定位啟用桌位並回傳上架菜單。公開送單只接受商品 ID／整數數量與冪等 key；服務端重查價格並同交易寫訂單快照及匿名 tenant audit。Owner 管理主檔；Owner／Member 經 tenant membership 授權操作 POS。PostgreSQL 複合外鍵、append-only snapshot trigger、延遲總額驗證及狀態轉換 trigger 保護訂單。此切片沒有付款、WMS、CRM、KDS 或硬體整合。細節見 [Restaurant 需求](RESTAURANT-REQUIREMENTS.md)。

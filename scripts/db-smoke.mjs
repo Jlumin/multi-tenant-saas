@@ -60,12 +60,12 @@ try {
   await assert.rejects(database.query("INSERT INTO tenants (id, name, slug) VALUES (NULL,$1,$2)", ["Missing UUID", "null-uuid"]), { code: "23502" });
   await assert.rejects(database.query("INSERT INTO tenants (name, slug, created_at) VALUES ($1,$2,NULL)", ["Missing timestamp", "null-time"]), { code: "23502" });
   const history = (await database.query("SELECT migration_name, checksum, finished_at FROM _prisma_migrations ORDER BY migration_name")).rows;
-  assert.equal(history.length, 18);
+  assert.equal(history.length, 19);
   const wmsTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['wms_documents','wms_document_lines','wms_stock_balances','wms_stock_movements','wms_posting_keys','wms_stock_counts','wms_stock_count_lines','wms_opening_entries','wms_tenant_settings','wms_stock_reservations','wms_stock_reservation_lines']) AS name ORDER BY table_name")).rows;
   assert.equal(wmsTables.length, 11);
   assert.ok(wmsTables.every(row => row.table_name !== null));
-  const ecomTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['ecom_stores','ecom_products','ecom_orders','ecom_order_lines','ecom_restock_subscriptions']) AS name ORDER BY table_name")).rows;
-  assert.equal(ecomTables.length, 5);
+  const ecomTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['ecom_stores','ecom_products','ecom_orders','ecom_order_lines','ecom_restock_subscriptions','ecom_payment_attempts','ecom_payment_events']) AS name ORDER BY table_name")).rows;
+  assert.equal(ecomTables.length, 7);
   assert.ok(ecomTables.every(row => row.table_name !== null));
   const hrTables = (await database.query("SELECT to_regclass('public.' || name) AS table_name FROM unnest(ARRAY['hr_employees','hr_attendance','hr_attendance_adjustments','hr_tenant_settings']) AS name ORDER BY table_name")).rows;
   assert.equal(hrTables.length, 4);
@@ -85,7 +85,7 @@ try {
   prisma(["migrate", "status"], targetURL);
   prisma(["migrate", "diff", "--from-config-datasource", "--to-schema", "prisma/schema.prisma", "--exit-code"], targetURL);
   assert.equal((await database.query("SELECT count(*)::int AS total FROM tenants")).rows[0].total, 2);
-  console.log("PASS: fresh PostgreSQL migration, WMS/E-Commerce/HR/Restaurant/CRM schema including tenant CRM contacts, QR orders and attendance guards, UUID/time defaults, NOT NULL/PK/slug uniqueness, second deploy unchanged, schema drift absent.");
+  console.log("PASS: fresh PostgreSQL migration, WMS/E-Commerce/HR/Restaurant/CRM schema including payment ledger, tenant CRM contacts, QR orders and attendance guards, UUID/time defaults, NOT NULL/PK/slug uniqueness, second deploy unchanged, schema drift absent.");
 } catch (error) {
   console.error(error instanceof assert.AssertionError ? `DB smoke assertion failed: ${error.message}` : "DB smoke failed; check PostgreSQL connectivity, CREATEDB permission and Prisma compatibility. Secrets suppressed.");
   process.exitCode = 1;

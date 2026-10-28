@@ -20,6 +20,7 @@ import { handleEcommerce } from "../../src/server/ecommerce/api";
 import { handlePublicShop } from "../../src/server/ecommerce/public-api";
 import { handlePublicCheckout } from "../../src/server/ecommerce/checkout-api";
 import { createEcommerceOrders } from "../../src/server/ecommerce/orders";
+import { createEcommercePayments } from "../../src/server/ecommerce/payments";
 import { handlePublicRestock } from "../../src/server/ecommerce/restock-api";
 import { createRestockNotifications } from "../../src/server/ecommerce/restock";
 
@@ -62,7 +63,7 @@ beforeEach(async () => {
   warehouseA = (await wms.create(actors.ownerA, a, { kind: "warehouses" }, { code: "SHOP-A", name: "Shop A warehouse" })).id;
   warehouseB = (await wms.create(actors.ownerB, b, { kind: "warehouses" }, { code: "SHOP-B", name: "Shop B warehouse" })).id;
   locationA = (await db.wmsLocation.findFirstOrThrow({ where: { tenantId: a, warehouseId: warehouseA, isDefault: true } })).id;
-  for (const [index, code] of ["MEMBER", "PART-1", "OTHER", "ROLLBACK", "LIVE", "DRAFT", "BAD2", "BAD3", "BAD5", "VERSION", "CSRF", "ORDER-1", "LIVE-C", "DRAFT-C", "FOREIGN-C", "RACE-C"].entries()) {
+  for (const [index, code] of ["MEMBER", "PART-1", "OTHER", "ROLLBACK", "LIVE", "DRAFT", "BAD2", "BAD3", "BAD5", "VERSION", "CSRF", "ORDER-1", "LIVE-C", "DRAFT-C", "FOREIGN-C", "RACE-C", "PAYMENT", "PAYMENT-ROLLBACK"].entries()) {
     wmsProductsA[code] = (await wms.create(actors.ownerA, a, { kind: "products" }, { code: `EA-${index}`, name: `${code} WMS`, baseUnit: "個" })).id;
     wmsProductsB[code] = (await wms.create(actors.ownerB, b, { kind: "products" }, { code: `EB-${index}`, name: `${code} WMS`, baseUnit: "個" })).id;
   }
@@ -218,6 +219,56 @@ describe("E-Commerce store and catalog with signed sessions and PostgreSQL", () 
     expect(results.map(result => result.status).sort()).toEqual([201, 409]);
     expect(await db.wmsStockReservation.count({ where: { tenantId: a, status: "active" } })).toBe(1);
     expect((await db.wmsStockBalance.findUniqueOrThrow({ where: { tenantId_productId_warehouseId_locationId: { tenantId: a, productId: wmsProductsA["RACE-C"], warehouseId: warehouseA, locationId: locationA } } })).quantity).toBe(1);
+  });
+  it("records tenant-scoped payment attempts and append-only idempotent provider events", async () => {
+    const slug = `payment-${randomUUID()}`; await api("ownerA", `${a}/store`, "POST", storeInput(slug));
+    const product = await (await api("ownerA", `${a}/products`, "POST", productInput("PAYMENT", true))).json();
+    await receiveProduct(a, actors.ownerA, warehouseA, locationA, wmsProductsA.PAYMENT, 2);
+    const orderResult = await createEcommerceOrders(db).checkout(slug, `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`, { buyerName: "Payment buyer", buyerEmail: "payment@example.test", lines: [{ productId: product.id, quantity: 1 }] });
+    const order = await db.ecomOrder.findFirstOrThrow({ where: { tenantId: a, orderNumber: orderResult.orderNumber } });
+    const payments = createEcommercePayments(db), key = randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "");
+    const attempt = await payments.createAttempt(actors.ownerA, a, order.id, "fake.test", key);
+    expect(attempt).toMatchObject({ tenantId: a, orderId: order.id, amount: "120.50", currency: "TWD", status: "pending", replayed: false });
+    expect((await payments.createAttempt(actors.ownerA, a, order.id, "fake.test", key)).replayed).toBe(true);
+    await expect(payments.createAttempt(actors.member, a, order.id, "fake.test", randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""))).rejects.toMatchObject({ status: 403 });
+    await expect(payments.createAttempt(actors.ownerB, a, order.id, "fake.test", randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""))).rejects.toMatchObject({ status: 404 });
+
+    const event = (providerEventId: string, kind: "processing" | "succeeded" | "failed", tenantId = a) => ({
+      tenantId, storeId: (attempt as { storeId: string }).storeId, orderId: order.id, attemptId: attempt.id,
+      providerCode: "fake.test", providerEventId, providerTransactionId: "fake-transaction-001",
+      kind, amount: "120.50", currency: "TWD", occurredAt: new Date(),
+    });
+    expect(await payments.applyVerifiedEvent(event("provider-event-1", "processing"))).toMatchObject({ status: "processing", replayed: false, stale: false });
+    expect(await payments.applyVerifiedEvent(event("provider-event-2", "succeeded"))).toMatchObject({ status: "succeeded", replayed: false, stale: false });
+    expect(await payments.applyVerifiedEvent(event("provider-event-2", "succeeded"))).toMatchObject({ status: "succeeded", replayed: true });
+    expect(await payments.applyVerifiedEvent(event("provider-event-3", "processing"))).toMatchObject({ status: "succeeded", replayed: false, stale: true });
+    await expect(payments.applyVerifiedEvent(event("provider-event-2", "failed"))).rejects.toMatchObject({ status: 409, code: "provider_event_conflict" });
+    await expect(payments.applyVerifiedEvent({ ...event("provider-event-wrong-amount", "succeeded"), amount: "0.01" })).rejects.toMatchObject({ status: 409, code: "payment_amount_or_currency_mismatch" });
+    await expect(payments.applyVerifiedEvent(event("provider-event-conflict", "failed"))).rejects.toMatchObject({ status: 409, code: "payment_terminal_conflict" });
+    await expect(payments.applyVerifiedEvent(event("provider-event-cross-tenant", "succeeded", b))).rejects.toMatchObject({ status: 404 });
+    expect((await db.ecomPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status).toBe("succeeded");
+    await expect(payments.createAttempt(actors.ownerA, a, order.id, "fake.test", randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""))).rejects.toMatchObject({ status: 409, code: "order_already_paid" });
+    expect(await db.ecomPaymentEvent.count({ where: { tenantId: a, paymentAttemptId: attempt.id } })).toBe(3);
+    const hashedEvent = await db.ecomPaymentEvent.findFirstOrThrow({ where: { tenantId: a, paymentAttemptId: attempt.id } });
+    expect(hashedEvent.providerEventIdHash).not.toContain("provider-event");
+    expect((await db.ecomOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("submitted");
+
+    await expect(db.ecomPaymentAttempt.update({ where: { id: attempt.id }, data: { amount: "0.01" } })).rejects.toThrow();
+    await expect(db.ecomPaymentAttempt.delete({ where: { id: attempt.id } })).rejects.toThrow();
+    const savedEvent = await db.ecomPaymentEvent.findFirstOrThrow({ where: { tenantId: a, paymentAttemptId: attempt.id } });
+    await expect(db.ecomPaymentEvent.update({ where: { id: savedEvent.id }, data: { kind: "failed" } })).rejects.toThrow();
+    await expect(db.ecomPaymentEvent.delete({ where: { id: savedEvent.id } })).rejects.toThrow();
+  });
+  it("rolls back verified payment event and status when the audit write fails", async () => {
+    const slug = `payment-rollback-${randomUUID()}`; await api("ownerA", `${a}/store`, "POST", storeInput(slug));
+    const product = await (await api("ownerA", `${a}/products`, "POST", productInput("PAYMENT-ROLLBACK", true))).json();
+    await receiveProduct(a, actors.ownerA, warehouseA, locationA, wmsProductsA["PAYMENT-ROLLBACK"], 1);
+    const orderResult = await createEcommerceOrders(db).checkout(slug, `${randomUUID().replaceAll("-", "")}_${randomUUID().replaceAll("-", "")}`, { buyerName: "Payment buyer", buyerEmail: "payment@example.test", lines: [{ productId: product.id, quantity: 1 }] });
+    const order = await db.ecomOrder.findFirstOrThrow({ where: { tenantId: a, orderNumber: orderResult.orderNumber } });
+    const attempt = await createEcommercePayments(db).createAttempt(actors.ownerA, a, order.id, "fake.test", randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""));
+    await expect(createEcommercePayments(db).applyVerifiedEvent({ tenantId: a, storeId: attempt.storeId, orderId: order.id, attemptId: attempt.id, providerCode: "fake.test", providerEventId: "rollback-event", kind: "succeeded", amount: "120.50", currency: "TWD", occurredAt: new Date() }, "invalid-request-id")).rejects.toThrow();
+    expect((await db.ecomPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status).toBe("pending");
+    expect(await db.ecomPaymentEvent.count({ where: { tenantId: a, paymentAttemptId: attempt.id } })).toBe(0);
   });
   it("requires explicit restock opt-in, emails after WMS receipt, and supports unsubscribe", async () => {
     const slug = `restock-${randomUUID()}`; await api("ownerA", `${a}/store`, "POST", storeInput(slug));

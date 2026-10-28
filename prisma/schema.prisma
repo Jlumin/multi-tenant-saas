@@ -26,6 +26,8 @@ model Tenant {
   ecomStore                EcomStore?
   ecomProducts             EcomProduct[]
   ecomOrders               EcomOrder[]
+  ecomPaymentAttempts      EcomPaymentAttempt[]
+  ecomPaymentEvents        EcomPaymentEvent[]
   ecomRestockSubscriptions EcomRestockSubscription[]
   hrEmployees              HrEmployee[]
   hrAttendance             HrAttendance[]
@@ -574,6 +576,7 @@ model EcomStore {
   tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   products             EcomProduct[]
   orders               EcomOrder[]
+  paymentAttempts      EcomPaymentAttempt[]
   restockSubscriptions EcomRestockSubscription[]
 
   @@unique([tenantId, id])
@@ -612,27 +615,87 @@ enum EcomOrderStatus {
 }
 
 model EcomOrder {
-  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String          @map("tenant_id") @db.Uuid
-  storeId            String          @map("store_id") @db.Uuid
-  orderNumber        String          @map("order_number") @db.VarChar(32)
-  status             EcomOrderStatus @default(submitted)
-  currency           String          @db.Char(3)
-  buyerName          String          @map("buyer_name") @db.VarChar(120)
-  buyerEmail         String          @map("buyer_email") @db.VarChar(254)
-  totalAmount        Decimal         @map("total_amount") @db.Decimal(12, 2)
-  idempotencyKeyHash String          @map("idempotency_key_hash") @db.Char(64)
-  payloadHash        String          @map("payload_hash") @db.Char(64)
-  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  store              EcomStore       @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  storeId            String               @map("store_id") @db.Uuid
+  orderNumber        String               @map("order_number") @db.VarChar(32)
+  status             EcomOrderStatus      @default(submitted)
+  currency           String               @db.Char(3)
+  buyerName          String               @map("buyer_name") @db.VarChar(120)
+  buyerEmail         String               @map("buyer_email") @db.VarChar(254)
+  totalAmount        Decimal              @map("total_amount") @db.Decimal(12, 2)
+  idempotencyKeyHash String               @map("idempotency_key_hash") @db.Char(64)
+  payloadHash        String               @map("payload_hash") @db.Char(64)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  store              EcomStore            @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
   lines              EcomOrderLine[]
+  paymentAttempts    EcomPaymentAttempt[]
 
   @@unique([tenantId, id, storeId])
   @@unique([tenantId, orderNumber])
   @@unique([tenantId, storeId, idempotencyKeyHash])
   @@index([tenantId, storeId, createdAt, id])
   @@map("ecom_orders")
+}
+
+enum EcomPaymentStatus {
+  pending
+  processing
+  succeeded
+  failed
+}
+
+enum EcomPaymentEventKind {
+  processing
+  succeeded
+  failed
+}
+
+model EcomPaymentAttempt {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String             @map("tenant_id") @db.Uuid
+  storeId               String             @map("store_id") @db.Uuid
+  orderId               String             @map("order_id") @db.Uuid
+  attemptNumber         Int                @map("attempt_number")
+  providerCode          String             @map("provider_code") @db.VarChar(40)
+  providerTransactionId String?            @map("provider_transaction_id") @db.VarChar(160)
+  idempotencyKeyHash    String             @map("idempotency_key_hash") @db.Char(64)
+  amount                Decimal            @db.Decimal(12, 2)
+  currency              String             @db.Char(3)
+  status                EcomPaymentStatus  @default(pending)
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  store                 EcomStore          @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
+  order                 EcomOrder          @relation(fields: [tenantId, orderId, storeId], references: [tenantId, id, storeId], onDelete: Restrict)
+  events                EcomPaymentEvent[]
+
+  @@unique([tenantId, id, storeId])
+  @@unique([tenantId, orderId, attemptNumber])
+  @@unique([tenantId, storeId, idempotencyKeyHash])
+  @@index([tenantId, storeId, orderId, createdAt])
+  @@map("ecom_payment_attempts")
+}
+
+model EcomPaymentEvent {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  storeId             String               @map("store_id") @db.Uuid
+  paymentAttemptId    String               @map("payment_attempt_id") @db.Uuid
+  providerCode        String               @map("provider_code") @db.VarChar(40)
+  providerEventIdHash String               @map("provider_event_id_hash") @db.Char(64)
+  kind                EcomPaymentEventKind
+  amount              Decimal              @db.Decimal(12, 2)
+  currency            String               @db.Char(3)
+  occurredAt          DateTime             @map("occurred_at") @db.Timestamptz(3)
+  receivedAt          DateTime             @default(now()) @map("received_at") @db.Timestamptz(3)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  attempt             EcomPaymentAttempt   @relation(fields: [tenantId, paymentAttemptId, storeId], references: [tenantId, id, storeId], onDelete: Restrict)
+
+  @@unique([tenantId, providerCode, providerEventIdHash])
+  @@index([tenantId, paymentAttemptId, receivedAt])
+  @@map("ecom_payment_events")
 }
 
 model EcomOrderLine {

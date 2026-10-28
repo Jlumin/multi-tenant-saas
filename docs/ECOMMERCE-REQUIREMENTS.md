@@ -1,6 +1,6 @@
 # E-Commerce 購物網站需求探索
 
-2026-10-29 使用者指定其餘模組順序為 HR → Restaurant QR/POS → CRM → E-Commerce 金流。支付／退款候選切片為 ECOM-004 / Issue #38；供應商、銷售地區、幣別、支付方法、未付款逾時、取消／退款和稅務／對帳政策未選定，因此 provider-specific 實作先不開始。官方資料比較與條件式建議見 [ECOM-004 金流供應商選項](ECOM-004-PAYMENT-PROVIDER-OPTIONS.md)；文件不是商業決定或已實作功能。
+2026-10-29 使用者指定其餘模組順序為 HR → Restaurant QR/POS → CRM → E-Commerce 金流。供應商、商戶地區、幣別、支付方式、未付款期限、取消／退款和稅務／對帳政策暫緩，由後續產品決策再設定。官方資料比較與條件式建議見 [ECOM-004 金流供應商選項](ECOM-004-PAYMENT-PROVIDER-OPTIONS.md)。ECOM-004A / Issue #40 先建立供應商中立的付款帳本與標準事件狀態服務；不接公開 checkout、外部供應商、退款或 WMS 庫存生命週期。
 
 狀態：Discovery 草案，對應 ECOM-DISCOVERY-001 / Issue #23。日期：2026-10-28。本文用於整理需求和分期，不代表商業政策已核定或購物網站已實作。
 
@@ -101,6 +101,7 @@
 | ECOM-002 | 購物車、價格快照、結帳與訂單狀態 | guest/account、運費稅、取消、訂單留存與狀態機 |
 | ECOM-003 | WMS 可售量、預留／釋回與履約連接 | WMS 公開契約、競態、付款／庫存失敗補償與冪等 |
 | ECOM-004 | 支付、退款及支付 webhook | 使用者選定供應商、幣別、退款政策、憑證管理與沙盒驗證 |
+| ECOM-004A #40 | 供應商中立的付款嘗試／事件帳本與狀態服務 | Draft PR #41 待審；本機 PostgreSQL 驗證通過；只處理已驗證格式的內部事件，不改訂單或 WMS 流程；供應商與商業政策仍待設定 |
 | ECOM-005（可選） | CRM 會員與售後／促銷連接 | CRM owner、會員同意、個資政策、優惠規則 |
 
 ## 核心驗收案例候選
@@ -151,3 +152,9 @@
 ## ECOM-003 Discovery：WMS 商品關聯與庫存契約
 
 依 ECOM-DISCOVERY-001 的候選分期，決策見 [ECOM-WMS-INTEGRATION.md](ECOM-WMS-INTEGRATION.md)（Issue #28）；implementation 對應 Issue #30。實作將 checkout 同交易原子預留、店倉可售量、缺貨阻擋、Owner 確認履約／回倉釋回、到貨 opt-in/退訂通知與 Owner 可切換的 WMS 跨倉調撥串接。釋回不增加庫存；退回品須完成 WMS 入庫才恢復可售。付款與正式 SMTP 不在範圍；驗收證據見 `docs/verification/ECOM-003.md`。
+
+## ECOM-004A 付款帳本前置切片
+
+對應 Issue #40。新增 E-Commerce 自有付款嘗試及 append-only provider event ledger，將金額與幣別固定對照不可變訂單快照，並以 tenant/store/order 複合關聯隔離租戶。狀態僅為 `pending → processing → succeeded|failed`；同事件重播冪等、終止後遲到的 processing 不回退、相反的終止結果拒絕。provider event ID 只保存 SHA-256 digest；不保存原始 webhook、卡片資料或供應商秘密。
+
+此為後續 adapter 可呼叫的內部 domain service，尚無公開 API、供應商 adapter、簽章驗證、對客付款或實際退款；呼叫端未來必須先完成供應商簽章驗證。付款事件不改 `ecom_orders.status`，也不履約、扣減或釋回 WMS reservation。付款期限、訂單取消、庫存補償、退款與對帳待供應商及產品政策核定後另行實作。驗證見 `docs/verification/ECOM-004A-PAYMENT-LEDGER.md`。
