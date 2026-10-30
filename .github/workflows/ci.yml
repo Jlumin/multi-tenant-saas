@@ -1,0 +1,89 @@
+name: SME Cloud CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm@sha256:858bb5e98eed02eb8cafbcdc007f9a65d1b613972028944a8ec2133ccaf80d27
+        env:
+          POSTGRES_DB: sme_cloud
+          POSTGRES_USER: sme_cloud
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sme_cloud -d sme_cloud"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-a-production-secret
+      POSTGRES_DB: sme_cloud
+      POSTGRES_USER: sme_cloud
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_HOST: localhost
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt
+      - run: python -m pip install pip-audit==2.10.1
+      - run: pip-audit -r requirements.txt
+      - run: python manage.py check
+      - name: Check production security settings
+        run: >-
+          DJANGO_DEBUG=0 DJANGO_ALLOWED_HOSTS=example.invalid
+          DJANGO_CSRF_TRUSTED_ORIGINS=https://example.invalid
+          DJANGO_SECURE_SSL_REDIRECT=1 DJANGO_SECURE_HSTS_SECONDS=31536000
+          DJANGO_TRUST_PROXY_SSL=1 python manage.py check --deploy
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py migrate --noinput
+      - run: python manage.py test
+      - run: python manage.py shell -c "from django.test import Client; r = Client(HTTP_HOST='localhost').get('/api/v1/health/ready/'); assert r.status_code == 200, r.content"
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm run build
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Scan repository history for secrets
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)" -v "${GITHUB_WORKSPACE}:/repo:ro"
+          ghcr.io/gitleaks/gitleaks@sha256:aa036a2f4bdfe3cc3c55fa4326308efabb4a6be498c883c864fd1d0d5585438a
+          git --redact --no-banner --log-opts="--all" /repo
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose --env-file .env.example config --quiet
+      - run: docker compose --env-file config/production.env.example -f compose.yaml -f compose.production.yaml config --quiet
+      - run: docker compose --env-file .env.example up --build --wait --wait-timeout 300
+      - run: docker compose --env-file .env.example exec -T backend python manage.py check
+      - run: docker compose --env-file .env.example exec -T backend python manage.py makemigrations --check --dry-run
+      - run: docker compose --env-file .env.example exec -T backend python manage.py migrate --noinput
+      - run: docker compose --env-file .env.example exec -T backend python manage.py test
+      - run: docker compose --env-file .env.example exec -T frontend npm run typecheck
+      - run: docker compose --env-file .env.example exec -T frontend npm run build
+      - run: curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://localhost:4200/ && curl --fail http://localhost:4200/api/v1/health/ready/
+      - if: always()
+        run: docker compose --env-file .env.example logs && docker compose --env-file .env.example down -v

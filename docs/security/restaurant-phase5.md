@@ -1,0 +1,9 @@
+# Restaurant Phase 5 security
+
+- All staff APIs require an active session and tenant membership; store-scoped operations also require access to that active store. Admin can access every tenant store; manager/viewer require explicit store assignment.
+- Menu and QR table management require tenant admin (menu) or admin/manager (table). Shift opening/closing requires admin/manager. Assigned cashiers can operate orders and collect cash; refunds require admin/manager.
+- Public endpoints are narrowly scoped to QR menu lookup, order submission and QR SVG rendering. A 256-bit random table bearer token is stored as a SHA-256 digest, is revocable through rotation/deactivation, and limits guest access to one table. No public tenant-wide menu or guest order lookup exists. Configure `FRONTEND_ORIGIN` per environment to prevent QR codes pointing at an unintended host.
+- QR order submission requires CSRF and is rate-limited to 20 requests per minute per client IP. Production must replace process-local cache throttling with a shared cache and must verify trusted proxy/IP handling.
+- Staff mutations use session CSRF. Every money or order mutation is idempotent; PostgreSQL guards and service locks preserve payment state, refund ceiling, order snapshots and event history.
+- Guest input is validated server-side; clients cannot set prices, currency, store, table or payment state. Order lines snapshot server-owned menu prices. Tokens are returned only at QR creation/rotation; QR SVG responses disable caching and set a no-referrer policy.
+- Cash is recorded only; there is no gateway, cardholder data or payment callback. Logs/audit do not store raw QR tokens, passwords or payment credentials. Public QR brute-force/DDOS controls beyond application throttling, receipt/privacy retention and production proxy configuration remain deployment work.

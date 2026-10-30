@@ -1,0 +1,21 @@
+__pycache__/
+.pytest_cache/
+.venv/
+build/
+dist/
+*.spec
+backups/
+.backups/
+*.tmp
+work/
+outputs/
+
+# SME Cloud
+.env
+node_modules/
+.angular/
+coverage/
+*.sqlite3
+.phase0-venv/
+
+.docker-local/
