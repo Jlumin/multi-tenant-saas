@@ -67,6 +67,8 @@
         @if (tenant.role === 'admin') {
           <form (ngSubmit)="saveBranding()"><fieldset class="inline-form" [disabled]="busy()">
             <label>品牌名稱<input name="brandName" [(ngModel)]="brandName" maxlength="120" required></label>
+            <label>店面標題<input name="storefrontHeading" [(ngModel)]="storefrontHeading" maxlength="120" placeholder="為你挑選的好物"></label>
+            <label>店面介紹<textarea name="storefrontDescription" [(ngModel)]="storefrontDescription" maxlength="240" rows="2" placeholder="探索商品與最新供貨狀態。"></textarea></label>
             <label>主色<input name="primaryColor" type="color" [(ngModel)]="primaryColor" required></label>
             <label>輔色<input name="accentColor" type="color" [(ngModel)]="accentColor" required></label>
             <label class="check"><input name="storefrontEnabled" type="checkbox" [(ngModel)]="storefrontEnabled">啟用公開客戶店面</label>

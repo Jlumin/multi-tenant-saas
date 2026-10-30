@@ -20,6 +20,8 @@ from .services import audit, save_member, save_store
 
 class BrandingInput(serializers.Serializer):
     brand_name = serializers.CharField(max_length=120, allow_blank=True, trim_whitespace=True, required=False)
+    storefront_heading = serializers.CharField(max_length=120, allow_blank=True, trim_whitespace=True, required=False)
+    storefront_description = serializers.CharField(max_length=240, allow_blank=True, trim_whitespace=True, required=False)
     primary_color = serializers.RegexField(r"^#[0-9A-Fa-f]{6}$", required=False)
     accent_color = serializers.RegexField(r"^#[0-9A-Fa-f]{6}$", required=False)
     storefront_enabled = serializers.BooleanField(required=False)
@@ -41,6 +43,8 @@ def _branding_payload(request, tenant, branding):
         "tenant_id": str(tenant.pk),
         "tenant_slug": tenant.slug,
         "brand_name": branding.brand_name or tenant.name,
+        "storefront_heading": branding.storefront_heading,
+        "storefront_description": branding.storefront_description,
         "primary_color": branding.primary_color,
         "accent_color": branding.accent_color,
         "logo_url": f"/api/v1/tenants/{tenant.pk}/branding/logo/" if branding.logo else None,

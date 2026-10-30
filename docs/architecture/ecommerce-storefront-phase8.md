@@ -25,3 +25,7 @@
 此 UI 是產品目錄與瀏覽器購物清單，不代表已具備顧客下單流程。公開 checkout 要先確定顧客登入或訪客身分、CRM 客戶資料／同意、收件與配送欄位、付款方式與 webhook、通知與缺貨到貨信、退款／退貨政策。真實支付、匿名訂單 API、會員註冊、到貨通知訂閱、物流與發票仍未實作。
 
 production 部署公開 API 前須確認 trusted proxy client IP 設定、共享 cache 或 edge rate limiting、公開 tenant slug 與內容審核；不能僅依容器內記憶體節流保護多副本服務。
+
+## Phase 9 展示客製化
+
+租戶管理員可另設店面標題（120 字內）及介紹（240 字內），空白時回退至通用預設文字。公開目錄回應只傳此公開文案，品牌管理端由既有 admin-only branding API 寫入並納入審計。商品卡可開啟原生 dialog 檢視同一份公開 listing 的圖片、編號、售價與有貨狀態；沒有新增公開 API 或 CRM／訂單資料存取。詳見 [Phase 9 驗證](../roadmap/phase9-validation.md)。

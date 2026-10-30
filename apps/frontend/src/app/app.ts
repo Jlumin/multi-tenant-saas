@@ -10,7 +10,7 @@ import { EcommerceStorefront } from './modules/ecommerce/storefront';
 type Role = 'admin' | 'manager' | 'viewer';
 interface TenantMembership { tenant_id: string; tenant_name: string; role: Role }
 interface Identity { username: string; memberships: TenantMembership[] }
-interface Branding { tenant_id:string; tenant_slug:string; brand_name:string; primary_color:string; accent_color:string; logo_url:string|null; storefront_enabled:boolean; storefront_url:string|null }
+interface Branding { tenant_id:string; tenant_slug:string; brand_name:string; storefront_heading:string; storefront_description:string; primary_color:string; accent_color:string; logo_url:string|null; storefront_enabled:boolean; storefront_url:string|null }
 interface Store { id: string; name: string; code: string; is_active: boolean }
 interface Member { id: string; username: string; role: Role; is_active: boolean; store_ids: string[] }
 interface Audit { id: string; action: string; actor_id: number | null; target_id: string; request_id: string; created_at: string }
@@ -47,6 +47,7 @@ export class App {
   memberPassword = '';
   memberRole: Role = 'viewer';
   brandName = ''; primaryColor = '#17675B'; accentColor = '#39746B';
+  storefrontHeading = ''; storefrontDescription = '';
   storefrontEnabled = false;
   readonly locationOrigin = window.location.origin;
   private csrfToken = '';
@@ -141,7 +142,7 @@ export class App {
       tenant.role === 'admin' ? this.request<Page<Audit>>(`${base}/audit/?limit=50`) : null,
       this.request<Branding>(`${base}/branding/`),
     ]);
-    this.branding.set(branding); this.brandName=branding.brand_name; this.primaryColor=branding.primary_color; this.accentColor=branding.accent_color; this.storefrontEnabled=branding.storefront_enabled;
+    this.branding.set(branding); this.brandName=branding.brand_name; this.storefrontHeading=branding.storefront_heading; this.storefrontDescription=branding.storefront_description; this.primaryColor=branding.primary_color; this.accentColor=branding.accent_color; this.storefrontEnabled=branding.storefront_enabled;
     this.stores.set(stores.results); this.storeCount.set(stores.count);
     this.members.set(members?.results ?? []); this.memberCount.set(members?.count ?? 0);
     this.events.set(events?.results ?? []); this.auditCount.set(events?.count ?? 0);
@@ -172,7 +173,7 @@ export class App {
 
   async saveBranding():Promise<void> {
     const tenant=this.selected(); if(!tenant)return;
-    await this.guard(async()=>{const brand=await this.request<Branding>(`${this.path(tenant)}/branding/`,'PATCH',{brand_name:this.brandName,primary_color:this.primaryColor,accent_color:this.accentColor,storefront_enabled:this.storefrontEnabled});this.branding.set(brand);this.notice.set('租戶品牌與客戶店面設定已儲存。');});
+    await this.guard(async()=>{const brand=await this.request<Branding>(`${this.path(tenant)}/branding/`,'PATCH',{brand_name:this.brandName,storefront_heading:this.storefrontHeading,storefront_description:this.storefrontDescription,primary_color:this.primaryColor,accent_color:this.accentColor,storefront_enabled:this.storefrontEnabled});this.branding.set(brand);this.notice.set('租戶品牌與客戶店面設定已儲存。');});
   }
 
   async uploadLogo(event:Event):Promise<void> {

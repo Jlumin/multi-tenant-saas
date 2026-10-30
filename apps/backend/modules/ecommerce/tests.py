@@ -167,6 +167,7 @@ class EcommerceFlowTests(TestCase):
         brand = TenantBranding.objects.create(
             tenant=self.tenant, brand_name="Shop Tenant Public", primary_color="#114477",
             accent_color="#22AA77", storefront_enabled=True,
+            storefront_heading="零件直送", storefront_description="適合你的維修與改裝需求。",
         )
         stock = StockBalance.objects.get(tenant=self.tenant, product=self.product, warehouse=self.warehouse, location=self.location)
         stock.quantity = 0
@@ -183,6 +184,8 @@ class EcommerceFlowTests(TestCase):
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(response["Cache-Control"], "public, max-age=60")
             self.assertEqual(response.data["brand_name"], "Shop Tenant Public")
+            self.assertEqual(response.data["storefront_heading"], "零件直送")
+            self.assertEqual(response.data["storefront_description"], "適合你的維修與改裝需求。")
             self.assertEqual(response.data["logo_url"], f"/api/v1/storefronts/{self.tenant.slug}/logo/")
             self.assertEqual(response.data["count"], 1)
             self.assertEqual(response.data["results"][0]["listing_id"], listing["id"])
@@ -197,6 +200,11 @@ class EcommerceFlowTests(TestCase):
 
             # A different enabled tenant must not be able to expose this tenant's product image.
             TenantBranding.objects.create(tenant=self.other_tenant, storefront_enabled=True)
+            other_catalog = public.get(f"/api/v1/storefronts/{self.other_tenant.slug}/")
+            self.assertEqual(other_catalog.status_code, 200)
+            self.assertEqual(other_catalog.data["count"], 0)
+            self.assertEqual(other_catalog.data["brand_name"], self.other_tenant.name)
+            self.assertEqual(other_catalog.data["storefront_heading"], "為你挑選的好物")
             cross_tenant_image = public.get(
                 f"/api/v1/storefronts/{self.other_tenant.slug}/products/{self.product.pk}/image/",
             )

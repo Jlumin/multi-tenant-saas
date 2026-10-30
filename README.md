@@ -16,6 +16,8 @@ Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actio
 - [Phase 7 品牌與圖片管理](docs/architecture/tenant-branding-phase7.md)：租戶專屬品牌外觀、Logo 與 WMS 商品圖
 - [Phase 8 客戶店面](docs/architecture/ecommerce-storefront-phase8.md)：公開商品瀏覽、品牌套用、庫存有／無提示與購物清單；結帳保留待後續設計
 - [Phase 8 驗證紀錄](docs/roadmap/phase8-validation.md)：自動測試結果與未完成的正式環境前置條件
+- [Phase 9 驗證紀錄](docs/roadmap/phase9-validation.md)：店面文案客製化與商品詳情顯示
+- [Phase 9 資料庫欄位](docs/database/storefront-content-phase9.md)：每租戶店面標題與介紹
 
 ## Docker 開發環境
 

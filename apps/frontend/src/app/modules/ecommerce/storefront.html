@@ -10,8 +10,8 @@
 
   <section class="hero">
     <p class="eyebrow">OFFICIAL ONLINE STORE</p>
-    <h1>為你挑選的好物</h1>
-    <p>探索商品與最新供貨狀態。</p>
+    <h1>{{ shop.storefront_heading }}</h1>
+    <p>{{ shop.storefront_description }}</p>
     <form class="search" (ngSubmit)="search()">
       <label class="visually-hidden" for="product-search">搜尋商品</label>
       <input id="product-search" name="query" [(ngModel)]="query" placeholder="搜尋商品名稱或商品編號" maxlength="80">
@@ -32,6 +32,7 @@
               <span class="stock" [class.out]="!product.is_available">{{ product.is_available ? '現貨供應' : '暫時缺貨' }}</span>
             </div>
             <div class="product-info"><p class="product-code">{{ product.product_code }}</p><h3>{{ product.title }}</h3>
+              <button class="detail-link" type="button" (click)="openProduct(product)">查看商品詳情</button>
               <div class="product-bottom"><strong>{{ formatPrice(product.price, product.currency) }}</strong>
                 <button type="button" (click)="add(product)" [disabled]="!product.is_available">{{ product.is_available ? '加入購物清單' : '暫無庫存' }}</button>
               </div>
@@ -44,6 +45,19 @@
       <div class="empty"><h3>{{ query ? '找不到符合的商品' : '商品準備中' }}</h3><p>{{ query ? '試試其他名稱或商品編號。' : '這個店面目前還沒有上架商品。' }}</p></div>
     } @else if (loading() && !products().length) { <p class="loading" role="status">正在載入商品…</p> }
   </section>
+
+  <dialog #productDialog class="product-dialog" aria-labelledby="product-detail-title" (close)="closeProduct()">
+    @if (selectedProduct(); as product) {
+      <article class="product-detail">
+        <button class="dialog-close" type="button" aria-label="關閉商品詳情" (click)="productDialog.close()">×</button>
+        @if (product.product_image_url) { <img class="detail-image" [src]="product.product_image_url" [alt]="product.title"> }
+        <p class="product-code">{{ product.product_code }}</p><h2 id="product-detail-title">{{ product.title }}</h2>
+        <strong class="detail-price">{{ formatPrice(product.price, product.currency) }}</strong>
+        <p class="stock-copy" [class.out]="!product.is_available">{{ product.is_available ? '現貨供應' : '暫時缺貨' }}</p>
+        <button class="detail-add" type="button" (click)="add(product)" [disabled]="!product.is_available">{{ product.is_available ? '加入購物清單' : '暫無庫存' }}</button>
+      </article>
+    }
+  </dialog>
 
   <section id="cart" class="cart-section" aria-labelledby="cart-title">
     <div class="section-heading"><div><p class="eyebrow">YOUR SELECTION</p><h2 id="cart-title">購物清單</h2></div><span>{{ cartCount() }} 件商品</span></div>

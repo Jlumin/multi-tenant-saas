@@ -71,6 +71,8 @@ class PublicStorefrontView(APIView):
         response = Response({
             "tenant_slug": tenant.slug,
             "brand_name": branding.brand_name or tenant.name,
+            "storefront_heading": branding.storefront_heading or "為你挑選的好物",
+            "storefront_description": branding.storefront_description or "探索商品與最新供貨狀態。",
             "primary_color": branding.primary_color,
             "accent_color": branding.accent_color,
             "logo_url": f"/api/v1/storefronts/{tenant.slug}/logo/" if branding.logo else None,

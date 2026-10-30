@@ -1,4 +1,4 @@
-import { Component, input, OnChanges, SimpleChanges, signal } from '@angular/core';
+import { Component, ElementRef, input, OnChanges, SimpleChanges, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 interface StorefrontProduct {
@@ -14,6 +14,8 @@ interface StorefrontProduct {
 interface StorefrontPage {
   tenant_slug: string;
   brand_name: string;
+  storefront_heading: string;
+  storefront_description: string;
   primary_color: string;
   accent_color: string;
   logo_url: string | null;
@@ -37,12 +39,14 @@ export class EcommerceStorefront implements OnChanges {
   readonly storefront = signal<StorefrontPage | null>(null);
   readonly products = signal<StorefrontProduct[]>([]);
   readonly cart = signal<CartLine[]>([]);
+  readonly selectedProduct = signal<StorefrontProduct | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
   readonly offset = signal(0);
   readonly count = signal(0);
   readonly pageSize = 24;
   query = '';
+  @ViewChild('productDialog') private productDialog?: ElementRef<HTMLDialogElement>;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['tenantSlug']) void this.load(true);
@@ -85,6 +89,13 @@ export class EcommerceStorefront implements OnChanges {
         : [...lines, { product, quantity: 1 }];
     });
   }
+
+  openProduct(product: StorefrontProduct): void {
+    this.selectedProduct.set(product);
+    this.productDialog?.nativeElement.showModal();
+  }
+
+  closeProduct(): void { this.selectedProduct.set(null); }
 
   changeQuantity(line: CartLine, delta: number): void {
     this.cart.update(lines => lines

@@ -18,6 +18,8 @@ class TenantBranding(models.Model):
     tenant = models.OneToOneField(Tenant, primary_key=True, on_delete=models.PROTECT, related_name="branding")
     brand_name = models.CharField(max_length=120, blank=True)
     storefront_enabled = models.BooleanField(default=False)
+    storefront_heading = models.CharField(max_length=120, blank=True)
+    storefront_description = models.CharField(max_length=240, blank=True)
     primary_color = models.CharField(max_length=7, default="#17675B", validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$")])
     accent_color = models.CharField(max_length=7, default="#39746B", validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$")])
     logo = models.ImageField(upload_to=tenant_asset_path, blank=True, validators=[validate_raster_image])
