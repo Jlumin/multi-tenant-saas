@@ -2,7 +2,7 @@
   <app-qr-ordering [token]="token" />
 } @else {
 <main>
-  <header><div><p class="eyebrow">SME CLOUD · PHASE 2</p><h1>平台管理</h1><p>租戶、門店、團隊權限與倉儲</p></div>
+  <header><div><p class="eyebrow">SME CLOUD · PHASE 5</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
     @if (identity(); as me) { <div class="account"><span>{{ me.username }}</span><button type="button" (click)="logout()" [disabled]="busy()">登出</button></div> }
   </header>
   @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
@@ -94,3 +94,4 @@
   }
 </main>
 }
+
