@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
@@ -31,6 +32,10 @@ MIDDLEWARE = [
 ]
 ROOT_URLCONF = "config.urls"
 STATIC_URL = "/static/"
+MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", "/app/media"))
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1_000_000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5_800_000
+DATA_UPLOAD_MAX_NUMBER_FILES = 1
 WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {"default": {
     "ENGINE": "django.db.backends.postgresql",

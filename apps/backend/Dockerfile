@@ -2,7 +2,7 @@ FROM python:3.13-slim@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home app
+RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home app && mkdir /app/media && chown app:app /app/media
 COPY --chown=app:app . .
 USER app
 EXPOSE 8000

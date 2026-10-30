@@ -13,3 +13,5 @@ QR token 應高熵、可撤銷、限桌號／門店／有效期，不可用可�
 日誌不得記錄密碼、token、支付或敏感個資；審計須記錄操作者、租戶、動作、時間與結果，限制讀取與竄改。上線門檻：威脅建模、依賴弱點審查、秘密掃描、備份還原、權限測試、部署 `check --deploy` 與 TLS 驗證。這些尚未宣稱完成。
 
 Phase 6 已加入 Django HTTPS/HSTS/CSRF trusted-origin 設定與 production Compose 範本。只有在 Nginx 位於可信 TLS edge proxy 後方、該 proxy 覆寫 `X-Forwarded-Proto` 且是唯一入口時，才能啟用 proxy SSL 信任。操作條件與限制見 [Phase 6 runbook](../operations/phase6.md)。
+
+Phase 7 新增租戶品牌與受保護的圖片上傳；格式、大小、像素、CSRF、租戶隔離與 media volume 規則見 [Phase 7 圖片安全](tenant-assets-phase7.md)。PostgreSQL dump 不包含 media volume，正式上線前須另行加密備份並演練一致時間點還原。

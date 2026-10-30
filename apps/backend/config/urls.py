@@ -18,6 +18,8 @@ urlpatterns += [
     path("api/v1/tenants/<uuid:tenant_id>/members/", api.MemberList.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/members/<uuid:member_id>/", api.MemberDetail.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/audit/", api.AuditList.as_view()),
+    path("api/v1/tenants/<uuid:tenant_id>/branding/", api.TenantBrandingView.as_view()),
+    path("api/v1/tenants/<uuid:tenant_id>/branding/logo/", api.TenantBrandLogoView.as_view(), name="tenant-brand-logo"),
 ]
 urlpatterns += [
     path("api/v1/tenants/<uuid:tenant_id>/hr/employees/", hr_api.EmployeeList.as_view()),
@@ -57,6 +59,7 @@ urlpatterns += [
 urlpatterns += [
     path("api/v1/tenants/<uuid:tenant_id>/wms/products/", wms_api.ProductList.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/wms/products/<uuid:product_id>/", wms_api.ProductDetail.as_view()),
+    path("api/v1/tenants/<uuid:tenant_id>/wms/products/<uuid:product_id>/image/", wms_api.ProductImage.as_view(), name="wms-product-image"),
     path("api/v1/tenants/<uuid:tenant_id>/wms/products/<uuid:product_id>/units/", wms_api.PackageUnitList.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/wms/products/<uuid:product_id>/units/<uuid:package_unit_id>/", wms_api.PackageUnitDetail.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/wms/warehouses/", wms_api.WarehouseList.as_view()),

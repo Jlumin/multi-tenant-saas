@@ -1,10 +1,13 @@
 from django.shortcuts import get_object_or_404
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework import generics
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from platform_core.access import membership_for
+from platform_core.images import private_image_response
+from platform_core.serializers import ImageUploadInput
 from .models import InventoryDocument, Location, PackageUnit, Product, StockBalance, StockMovement, Warehouse
 from .serializers import (
     DocumentEditInput,
@@ -30,7 +33,9 @@ from .services import (
     create_product,
     create_warehouse,
     post_document,
+    remove_product_image,
     replace_document_lines,
+    set_product_image,
     set_package_unit_active,
     update_location,
     update_product,
@@ -71,6 +76,25 @@ class ProductDetail(APIView):
         serializer.is_valid(raise_exception=True)
         updated = update_product(request, tenant_id, product_id, dict(serializer.validated_data))
         return Response(ProductOutput(updated).data)
+
+
+class ProductImage(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, tenant_id, product_id):
+        member = membership_for(request, tenant_id)
+        product = get_object_or_404(Product, tenant=member.tenant, pk=product_id)
+        return private_image_response(product.image)
+
+    def post(self, request, tenant_id, product_id):
+        serializer = ImageUploadInput(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        product = set_product_image(request, tenant_id, product_id, serializer.validated_data["image"])
+        return Response(ProductOutput(product).data)
+
+    def delete(self, request, tenant_id, product_id):
+        product = remove_product_image(request, tenant_id, product_id)
+        return Response(ProductOutput(product).data)
 
 
 class PackageUnitList(TenantList):

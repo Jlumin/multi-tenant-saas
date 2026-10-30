@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 type Role = 'admin' | 'manager' | 'viewer';
 interface Page<T> { results: T[]; count: number }
-interface Product { id: string; code: string; name: string; base_unit: string; is_active: boolean; version: number }
+interface Product { id: string; code: string; name: string; base_unit: string; is_active: boolean; version: number; image_url:string|null }
 interface PackageUnit { id: string; product_id: string; code: string; name: string; base_quantity: number; is_base: boolean; is_active: boolean }
 interface Warehouse { id: string; code: string; name: string; is_active: boolean; version: number }
 interface Location { id: string; warehouse_id: string; code: string; name: string; is_default: boolean; is_active: boolean; version: number }
@@ -31,8 +31,8 @@ interface Document { id: string; kind: 'receipt' | 'issue'; status: 'draft' | 'p
           <label>基本單位<input name="baseUnit" [(ngModel)]="baseUnit" maxlength="20" required></label>
           <button class="primary" type="submit">新增商品</button>
         </fieldset></form> }
-        <div class="table-scroll"><table><thead><tr><th>代碼</th><th>名稱</th><th>基本單位</th><th>狀態／操作</th></tr></thead><tbody>
-          @for (item of products(); track item.id) { <tr><td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.base_unit }}</td><td>{{ item.is_active ? '啟用' : '停用' }} @if (role() === 'admin') { <button type="button" (click)="renameProduct(item)" [disabled]="busy()">改名稱</button> <button type="button" (click)="toggleProduct(item)" [disabled]="busy()">{{ item.is_active ? '停用' : '啟用' }}</button> }</td></tr> }
+        <div class="table-scroll"><table><thead><tr><th>圖片</th><th>代碼</th><th>名稱</th><th>基本單位</th><th>狀態／操作</th></tr></thead><tbody>
+          @for (item of products(); track item.id) { <tr><td>@if (item.image_url) { <img class="product-image" [src]="item.image_url" [alt]="item.name"> } @else { <span>尚無圖片</span> } @if (role() === 'admin') { <input type="file" accept="image/jpeg,image/png,image/webp" [attr.aria-label]="'上傳 ' + item.name + ' 商品圖片'" (change)="uploadProductImage(item,$event)" [disabled]="busy()"> }</td><td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.base_unit }}</td><td>{{ item.is_active ? '啟用' : '停用' }} @if (role() === 'admin') { <button type="button" (click)="renameProduct(item)" [disabled]="busy()">改名稱</button> <button type="button" (click)="toggleProduct(item)" [disabled]="busy()">{{ item.is_active ? '停用' : '啟用' }}</button> @if(item.image_url){ <button type="button" (click)="removeProductImage(item)" [disabled]="busy()">移除圖片</button> } }</td></tr> }
         </tbody></table></div>
         @if (role() === 'admin' && selectedProductId()) { <p>目前所選商品：{{ products().find(p => p.id === selectedProductId())?.code }}</p><form (ngSubmit)="createUnit()"><fieldset [disabled]="busy()" class="form-grid">
           <label>包裝代碼<input name="unitCode" [(ngModel)]="unitCode" maxlength="24" required></label>
@@ -103,12 +103,13 @@ interface Document { id: string; kind: 'receipt' | 'issue'; status: 'draft' | 'p
     .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.75rem; border:0; padding:0; margin:1rem 0; }
     .form-grid label { display:flex; flex-direction:column; gap:.35rem; font-size:.88rem; }
     input,select,button { font:inherit; border:1px solid #bdcdd7; border-radius:6px; padding:.55rem .7rem; background:#fff; color:#163047; }
-    button { cursor:pointer; } button:disabled { opacity:.6; cursor:wait; } .primary { background:#17675b; color:white; }
+    .product-image { width:56px; height:56px; object-fit:cover; border-radius:6px; display:block; margin:.25rem 0; }
+    button { cursor:pointer; } button:disabled { opacity:.6; cursor:wait; } .primary { background:var(--brand-primary, #17675b); color:white; }
     article { border-top:1px solid #e2e9ed; padding:.75rem 0; } .compact { margin:.5rem 0; }
     .chip { display:inline-block; padding:.2rem .5rem; margin:.15rem; border-radius:20px; background:#e1f3ec; font-size:.82rem; }
     .table-scroll { overflow:auto; } table { border-collapse:collapse; width:100%; text-align:left; font-size:.85rem; } th,td { padding:.65rem; border-bottom:1px solid #e2e9ed; vertical-align:top; }
     .message { padding:.8rem; background:#e1f3ec; border-radius:8px; overflow-wrap:anywhere; } .error { color:#9c2c18; background:#fff0ec; }
-    .eyebrow { color:#39746b; font-size:.8rem; letter-spacing:.12em; }
+    .eyebrow { color:var(--brand-accent, #39746b); font-size:.8rem; letter-spacing:.12em; }
     @media(max-width:600px) { .wms-intro { align-items:flex-start; flex-direction:column; } .wms-grid { grid-template-columns:1fr; } }
   `],
 })
@@ -145,6 +146,10 @@ export class WmsDashboard implements OnInit {
     if (!response.ok) { const details=payload.error?.details ?? '無法完成要求'; throw new Error(`${typeof details==='string'?details:JSON.stringify(details)} (${payload.error?.request_id ?? response.status})`); }
     return payload as T;
   }
+  private async requestForm<T>(url:string, form:FormData):Promise<T> {
+    const response=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'X-CSRFToken':this.csrfToken},body:form});const payload=await response.json();
+    if(!response.ok){const details=payload.error?.details??'無法完成要求';throw new Error(`${typeof details==='string'?details:JSON.stringify(details)} (${payload.error?.request_id??response.status})`);}return payload as T;
+  }
   private async run(work:()=>Promise<void>):Promise<void> {
     if (this.busy()) return; this.busy.set(true); this.error.set(''); this.notice.set('');
     try { await work(); } catch (error) { this.error.set(error instanceof Error?error.message:'連線失敗，請稍後重試。'); }
@@ -168,6 +173,8 @@ export class WmsDashboard implements OnInit {
     this.baseUnitForSelected.set(this.products().find(p=>p.id===this.documentProductId)?.base_unit ?? 'PCS');
   }
   async createProduct():Promise<void> { await this.run(async()=>{ await this.request(`${this.base()}/products/`,'POST',{code:this.productCode,name:this.productName,base_unit:this.baseUnit}); this.productCode='';this.productName='';await this.load();this.notice.set('商品已建立，並自動建立基本單位。'); }); }
+  async uploadProductImage(item:Product,event:Event):Promise<void>{const file=(event.target as HTMLInputElement).files?.[0];if(!file)return;await this.run(async()=>{const form=new FormData();form.set('image',file);await this.requestForm(`${this.base()}/products/${item.id}/image/`,form);await this.load();this.notice.set('商品圖片已更新。');});(event.target as HTMLInputElement).value='';}
+  async removeProductImage(item:Product):Promise<void>{await this.run(async()=>{await this.request(`${this.base()}/products/${item.id}/image/`,'DELETE');await this.load();this.notice.set('商品圖片已移除。');});}
   async renameProduct(item:Product):Promise<void> { const name=prompt('商品名稱',item.name)?.trim();if(!name||name===item.name)return;await this.run(async()=>{await this.request(`${this.base()}/products/${item.id}/`,'PATCH',{version:item.version,name});await this.load();this.notice.set('商品名稱已更新。');}); }
   async toggleProduct(item:Product):Promise<void> { await this.run(async()=>{await this.request(`${this.base()}/products/${item.id}/`,'PATCH',{version:item.version,is_active:!item.is_active});await this.load();this.notice.set('商品狀態已更新。');}); }
   async createWarehouse():Promise<void> { await this.run(async()=>{ await this.request(`${this.base()}/warehouses/`,'POST',{code:this.warehouseCode,name:this.warehouseName});this.warehouseCode='';this.warehouseName='';await this.load();this.notice.set('倉庫與未分配儲位已建立。'); }); }

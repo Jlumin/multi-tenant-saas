@@ -31,6 +31,8 @@ services:
       DJANGO_SECURE_HSTS_PRELOAD: ${DJANGO_SECURE_HSTS_PRELOAD:-0}
       DJANGO_TRUST_PROXY_SSL: ${DJANGO_TRUST_PROXY_SSL:-0}
     ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - media_data:/app/media
     depends_on:
       db: {condition: service_healthy}
     healthcheck:
@@ -50,3 +52,4 @@ services:
       backend: {condition: service_healthy}
 volumes:
   postgres_data:
+  media_data:

@@ -22,10 +22,11 @@ class ListingInput(StrictSerializer):
 
 class ListingOutput(serializers.ModelSerializer):
     available_quantity = serializers.IntegerField(read_only=True)
+    product_image_url = serializers.CharField(read_only=True, allow_null=True)
 
     class Meta:
         model = Listing
-        fields = ["id", "product_id", "warehouse_id", "product_code", "title", "currency", "price", "available_quantity", "is_active", "version", "created_at"]
+        fields = ["id", "product_id", "warehouse_id", "product_code", "title", "currency", "price", "available_quantity", "product_image_url", "is_active", "version", "created_at"]
         read_only_fields = fields
 
 

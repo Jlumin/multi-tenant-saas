@@ -1,8 +1,9 @@
 @if (qrToken(); as token) {
   <app-qr-ordering [token]="token" />
 } @else {
-<main>
-  <header><div><p class="eyebrow">SME CLOUD · PHASE 5</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
+<main [style.--brand-primary]="branding()?.primary_color" [style.--brand-accent]="branding()?.accent_color">
+  <header><div><p class="eyebrow">SME CLOUD · PHASE 7</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
+    @if (identity() && branding(); as brand) { <div class="brand-strip">@if (brand.logo_url) { <img class="brand-logo" [src]="brand.logo_url" [alt]="brand.brand_name + ' Logo'"> }<strong>{{ brand.brand_name }}</strong></div> }
     @if (identity(); as me) { <div class="account"><span>{{ me.username }}</span><button type="button" (click)="logout()" [disabled]="busy()">登出</button></div> }
   </header>
   @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
@@ -59,6 +60,19 @@
             @if (tenant.role === 'admin') { <button type="button" (click)="toggleStore(store)" [disabled]="busy()">{{ store.is_active ? '停用' : '啟用' }}</button> }
           </article>
         } @empty { <p>目前沒有可顯示的門店。</p> }</div>
+      </section>
+      <section><h2>品牌外觀</h2><p>設定只會套用在目前租戶。支援 JPEG、PNG、WebP，單張圖片上限 5 MiB。</p>
+        @if (tenant.role === 'admin') {
+          <form (ngSubmit)="saveBranding()"><fieldset class="inline-form" [disabled]="busy()">
+            <label>品牌名稱<input name="brandName" [(ngModel)]="brandName" maxlength="120" required></label>
+            <label>主色<input name="primaryColor" type="color" [(ngModel)]="primaryColor" required></label>
+            <label>輔色<input name="accentColor" type="color" [(ngModel)]="accentColor" required></label>
+            <button class="primary" type="submit">儲存品牌設定</button>
+          </fieldset></form>
+          <div class="inline-form"><label>上傳 Logo<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadLogo($event)" [disabled]="busy()"></label>
+            @if (branding()?.logo_url) { <button type="button" (click)="removeLogo()" [disabled]="busy()">移除 Logo</button> }
+          </div>
+        } @else { <p>品牌名稱：{{ branding()?.brand_name }} · 主色：{{ branding()?.primary_color }} · 輔色：{{ branding()?.accent_color }}</p> }
       </section>
       @if (tenant.role === 'admin') {
         <section><h2>團隊成員</h2><p>顯示 {{ members().length }} / {{ memberCount() }} 筆。租戶管理員可存取所有門店；其他角色需逐店授權。</p>

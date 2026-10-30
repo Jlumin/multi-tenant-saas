@@ -6,7 +6,7 @@ interface Page<T> { results: T[]; count: number }
 interface Product { id: string; code: string; name: string; is_active: boolean }
 interface Warehouse { id: string; code: string; name: string; is_active: boolean }
 interface Customer { id: string; code: string; name: string; is_active: boolean }
-interface Listing { id: string; product_id: string; warehouse_id: string; product_code: string; title: string; currency: string; price: string; available_quantity: number; is_active: boolean }
+interface Listing { id: string; product_id: string; warehouse_id: string; product_code: string; title: string; currency: string; price: string; available_quantity: number; product_image_url:string|null; is_active: boolean }
 interface Order { id: string; order_code: string; customer_name: string; status: string; currency: string; total_amount: string; payment_status: string; payment_provider: string; lines: Array<{product_code:string;title:string;warehouse_id:string;quantity:number;unit_price:string;line_total:string}> }
 
 @Component({
@@ -33,8 +33,8 @@ interface Order { id: string; order_code: string; customer_name: string; status:
         <button class="primary" type="submit">建立待付款訂單並預留庫存</button>
       </fieldset></form></section>
     }
-    <section><h3>上架清單</h3><div class="table-scroll"><table><thead><tr><th>商品</th><th>倉庫</th><th>價格</th><th>可售庫存</th><th>狀態</th></tr></thead><tbody>
-      @for (listing of listings(); track listing.id) { <tr><td>{{ listing.product_code }} · {{ listing.title }}</td><td>{{ warehouseName(listing.warehouse_id) }}</td><td>{{ listing.currency }} {{ listing.price }}</td><td>{{ listing.available_quantity }}</td><td>{{ listing.is_active ? '上架' : '下架' }}</td></tr> }
+    <section><h3>上架清單</h3><div class="table-scroll"><table><thead><tr><th>圖片</th><th>商品</th><th>倉庫</th><th>價格</th><th>可售庫存</th><th>狀態</th></tr></thead><tbody>
+      @for (listing of listings(); track listing.id) { <tr><td>@if(listing.product_image_url){<img class="product-image" [src]="listing.product_image_url" [alt]="listing.title">}@else{尚無圖片}</td><td>{{ listing.product_code }} · {{ listing.title }}</td><td>{{ warehouseName(listing.warehouse_id) }}</td><td>{{ listing.currency }} {{ listing.price }}</td><td>{{ listing.available_quantity }}</td><td>{{ listing.is_active ? '上架' : '下架' }}</td></tr> }
       @empty { <tr><td colspan="5">尚無商品上架。</td></tr> }
     </tbody></table></div></section>
     <section><h3>訂單</h3><div class="table-scroll"><table><thead><tr><th>訂單</th><th>會員</th><th>品項</th><th>金額</th><th>訂單／付款狀態</th><th>操作</th></tr></thead><tbody>
@@ -45,10 +45,10 @@ interface Order { id: string; order_code: string; customer_name: string; status:
   styles: [`
     :host { display:block; color:#163047; } section { background:white; border:1px solid #dce5eb; border-radius:12px; padding:1.25rem; margin:1rem 0; }
     .intro { display:flex; justify-content:space-between; align-items:center; gap:1rem; } h2 { margin:.2rem 0; } h3 { margin:.1rem 0 .8rem; }
-    .eyebrow { color:#39746b; font-size:.8rem; letter-spacing:.12em; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.75rem; border:0; padding:0; margin:1rem 0; }
+    .eyebrow { color:var(--brand-accent, #39746b); font-size:.8rem; letter-spacing:.12em; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.75rem; border:0; padding:0; margin:1rem 0; }
     label { display:flex; flex-direction:column; gap:.35rem; font-size:.88rem; } input,select,button { font:inherit; border:1px solid #bdcdd7; border-radius:6px; padding:.55rem .7rem; background:#fff; color:#163047; }
-    button { cursor:pointer; margin:.15rem; } button:disabled { opacity:.6; cursor:wait; } .primary { background:#17675b; color:white; } .notice { padding:.8rem; background:#fff5d8; border-radius:8px; }
-    .table-scroll { overflow:auto; } table { border-collapse:collapse; width:100%; text-align:left; font-size:.85rem; } th,td { padding:.65rem; border-bottom:1px solid #e2e9ed; vertical-align:top; }
+    button { cursor:pointer; margin:.15rem; } button:disabled { opacity:.6; cursor:wait; } .primary { background:var(--brand-primary, #17675b); color:white; } .notice { padding:.8rem; background:#fff5d8; border-radius:8px; }
+    .table-scroll { overflow:auto; } table { border-collapse:collapse; width:100%; text-align:left; font-size:.85rem; } th,td { padding:.65rem; border-bottom:1px solid #e2e9ed; vertical-align:top; } .product-image { width:56px; height:56px; object-fit:cover; border-radius:6px; }
     .message { padding:.8rem; background:#e1f3ec; border-radius:8px; overflow-wrap:anywhere; } .error { color:#9c2c18; background:#fff0ec; }
     @media(max-width:600px) { .intro { align-items:flex-start; flex-direction:column; } }
   `],

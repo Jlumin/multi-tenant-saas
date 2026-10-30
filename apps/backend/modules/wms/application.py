@@ -2,6 +2,7 @@
 import hashlib
 import json
 import uuid
+from django.urls import reverse
 
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Sum
@@ -30,6 +31,13 @@ def sellable_product(*, tenant_id, product_id, warehouse_id):
         raise ValidationError("Product or warehouse is unavailable in this tenant.")
     return {"product_id": product.pk, "product_code": product.code, "product_name": product.name,
             "base_unit": product.base_unit, "warehouse_id": warehouse.pk, "warehouse_code": warehouse.code}
+
+
+def product_image_url(*, tenant_id, product_id):
+    product = Product.objects.filter(tenant_id=tenant_id, pk=product_id, is_active=True).only("id", "tenant_id", "image").first()
+    if not product or not product.image:
+        return None
+    return reverse("wms-product-image", kwargs={"tenant_id": tenant_id, "product_id": product_id})
 
 
 def available_quantity(*, tenant_id, product_id, warehouse_id):

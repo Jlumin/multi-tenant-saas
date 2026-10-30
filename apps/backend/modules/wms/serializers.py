@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.urls import reverse
 
 from .models import (
     InventoryDocument,
@@ -47,9 +48,16 @@ class ProductInput(StrictSerializer):
 
 
 class ProductOutput(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    def get_image_url(self, product):
+        if not product.image:
+            return None
+        return reverse("wms-product-image", kwargs={"tenant_id": product.tenant_id, "product_id": product.pk})
+
     class Meta:
         model = Product
-        fields = ["id", "code", "name", "base_unit", "is_active", "version", "created_at", "updated_at"]
+        fields = ["id", "code", "name", "base_unit", "is_active", "version", "image_url", "created_at", "updated_at"]
 
 
 class PackageUnitInput(StrictSerializer):

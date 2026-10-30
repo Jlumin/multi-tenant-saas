@@ -9,5 +9,6 @@
 | Phase 4（2026-10-30 已核准；HR 第一版完成） | HR 員工、班別、排班、打卡及補登核准 | PostgreSQL migrations/guards、時區與跨日、租戶/RBAC、冪等、雙人核准及隱私測試；見 [Phase 4 驗證](phase4-validation.md) |
 | Phase 5（2026-10-30 已核准；第一版完成） | Restaurant 共用菜單、QR 訪客點餐、店員 POS、現金收退與班次交接 | scoped token/CSRF/throttle、租戶及門店 RBAC、冪等、金額快照、append-only 付款、交班測試；見 [Phase 5 驗證](phase5-validation.md) |
 | Phase 6（2026-10-30 已核准；營運準備完成） | 整合、營運及上線準備 | 備份／隔離還原工具、production Compose、HTTPS 安全設定、健康檢查與回滾流程；尚未部署或執行正式環境演練 |
+| Phase 7（2026-10-30 已核准；租戶品牌與圖片） | 每租戶品牌名稱、Logo、主／輔色；WMS 商品圖片供內部 WMS 與登入限定的電商上架使用；本機／production media volume | PostgreSQL migration、管理員寫入／租戶成員讀取、跨租戶隔離、圖片格式／尺寸／檔案大小限制、CSRF、媒體持久性及 UI 人工驗證 |
 
 上述模組順序仍以各階段核准為準。Phase 1 已確認 shared database 租戶模式、本機 Django User 及同源 Session；Phase 2 WMS 未包含期初、調撥、盤點或 legacy Mini WMS 資料匯入。Phase 3 目前是內部驗證流程，公開 storefront、真實金流、寄信、退款、物流與發票未啟用。管理員邀請信寄送已依使用者指示暫緩，記錄為全模組建置完成後的整體人工驗證項目。Phase 4 HR 第一版已完成；休息時間、遲到／加班判定、DST 特殊時間政策及個資資料保留政策待最後確認。Phase 5 Restaurant 第一版已於 2026-10-30 核准並完成；菜單稅費、折扣、小費、印單及最終保存政策待最後確認。Phase 6 已補上上線準備基礎，正式部署前仍須決定網域/TLS 代理、備份 RPO/RTO 與保存週期、負載目標及監控告警接收對象；不代表已上線。

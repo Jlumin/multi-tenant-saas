@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from platform_core.access import membership_for
-from modules.wms.application import available_quantity
+from modules.wms.application import available_quantity, product_image_url
 from .models import Listing, Order
 from .serializers import ListingInput, ListingOutput, OrderInput, OrderOutput
 from .services import cancel_order, capture_sandbox_payment, create_listing, create_order
@@ -21,11 +21,12 @@ class ListingList(generics.ListAPIView):
     def get_serializer(self, *args, **kwargs):
         serializer = super().get_serializer(*args, **kwargs)
         if serializer.instance is not None:
-            rows = serializer.instance if isinstance(serializer.instance, (list, tuple)) else [serializer.instance]
+            rows = serializer.instance if isinstance(serializer.instance, (list, tuple)) else list(serializer.instance) if hasattr(serializer.instance, "__iter__") else [serializer.instance]
             for row in rows:
                 row.available_quantity = available_quantity(
                     tenant_id=row.tenant_id, product_id=row.product_id, warehouse_id=row.warehouse_id,
                 )
+                row.product_image_url = product_image_url(tenant_id=row.tenant_id, product_id=row.product_id)
         return serializer
 
     def post(self, request, tenant_id):
@@ -33,6 +34,7 @@ class ListingList(generics.ListAPIView):
         serializer.is_valid(raise_exception=True)
         listing = create_listing(request, tenant_id, dict(serializer.validated_data))
         listing.available_quantity = available_quantity(tenant_id=listing.tenant_id, product_id=listing.product_id, warehouse_id=listing.warehouse_id)
+        listing.product_image_url = product_image_url(tenant_id=listing.tenant_id, product_id=listing.product_id)
         return Response(ListingOutput(listing).data, status=201)
 
 

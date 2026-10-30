@@ -9,6 +9,7 @@ import { RestaurantDashboard, QrOrdering } from './modules/restaurant/restaurant
 type Role = 'admin' | 'manager' | 'viewer';
 interface TenantMembership { tenant_id: string; tenant_name: string; role: Role }
 interface Identity { username: string; memberships: TenantMembership[] }
+interface Branding { tenant_id:string; brand_name:string; primary_color:string; accent_color:string; logo_url:string|null }
 interface Store { id: string; name: string; code: string; is_active: boolean }
 interface Member { id: string; username: string; role: Role; is_active: boolean; store_ids: string[] }
 interface Audit { id: string; action: string; actor_id: number | null; target_id: string; request_id: string; created_at: string }
@@ -23,6 +24,7 @@ interface Page<T> { results: T[]; count: number; next: string | null }
 export class App {
   readonly identity = signal<Identity | null>(null);
   readonly selected = signal<TenantMembership | null>(null);
+  readonly branding = signal<Branding | null>(null);
   readonly qrToken = signal<string | null>(new URLSearchParams(window.location.search).get('qr'));
   readonly moduleTab = signal<'platform' | 'wms' | 'crm' | 'ecommerce' | 'hr' | 'restaurant'>('platform');
   readonly stores = signal<Store[]>([]);
@@ -42,6 +44,7 @@ export class App {
   memberUsername = '';
   memberPassword = '';
   memberRole: Role = 'viewer';
+  brandName = ''; primaryColor = '#17675B'; accentColor = '#39746B';
   private csrfToken = '';
 
   constructor() { if (!this.qrToken()) void this.restore(); }
@@ -58,6 +61,16 @@ export class App {
         // Keep server-side denial authoritative. The refresh button rechecks membership.
         this.notice.set('權限可能已變更；請重新整理或重新登入。');
       }
+      const details = payload.error?.details ?? '無法完成要求';
+      throw new Error(`${typeof details === 'string' ? details : JSON.stringify(details)} (${payload.error?.request_id ?? response.status})`);
+    }
+    return payload as T;
+  }
+
+  private async requestForm<T>(url:string, method:string, form:FormData):Promise<T> {
+    const response = await fetch(url, { method, credentials:'same-origin', headers:{'X-CSRFToken':this.csrfToken}, body:form });
+    const payload = await response.json();
+    if (!response.ok) {
       const details = payload.error?.details ?? '無法完成要求';
       throw new Error(`${typeof details === 'string' ? details : JSON.stringify(details)} (${payload.error?.request_id ?? response.status})`);
     }
@@ -99,7 +112,7 @@ export class App {
   async logout(): Promise<void> {
     await this.guard(async () => {
       await this.request('/api/v1/auth/logout/', 'POST', {});
-      this.identity.set(null); this.selected.set(null); this.moduleTab.set('platform'); this.clearTenant();
+      this.identity.set(null); this.selected.set(null); this.branding.set(null); this.moduleTab.set('platform'); this.clearTenant();
       this.memberPassword = ''; this.password = '';
       this.csrfToken = (await this.request<{ csrfToken: string }>('/api/v1/auth/csrf/')).csrfToken;
     });
@@ -108,6 +121,7 @@ export class App {
   selectModule(tab: 'platform' | 'wms' | 'crm' | 'ecommerce' | 'hr' | 'restaurant'): void { this.moduleTab.set(tab); }
 
   private clearTenant(): void {
+    this.branding.set(null);
     this.stores.set([]); this.members.set([]); this.events.set([]);
     this.storeCount.set(0); this.memberCount.set(0); this.auditCount.set(0);
   }
@@ -117,11 +131,13 @@ export class App {
   private async loadTenant(tenant: TenantMembership): Promise<void> {
     this.selected.set(tenant); this.clearTenant();
     const base = this.path(tenant);
-    const [stores, members, events] = await Promise.all([
+    const [stores, members, events, branding] = await Promise.all([
       this.request<Page<Store>>(`${base}/stores/?limit=100`),
       tenant.role === 'admin' ? this.request<Page<Member>>(`${base}/members/?limit=100`) : null,
       tenant.role === 'admin' ? this.request<Page<Audit>>(`${base}/audit/?limit=50`) : null,
+      this.request<Branding>(`${base}/branding/`),
     ]);
+    this.branding.set(branding); this.brandName=branding.brand_name; this.primaryColor=branding.primary_color; this.accentColor=branding.accent_color;
     this.stores.set(stores.results); this.storeCount.set(stores.count);
     this.members.set(members?.results ?? []); this.memberCount.set(members?.count ?? 0);
     this.events.set(events?.results ?? []); this.auditCount.set(events?.count ?? 0);
@@ -148,6 +164,22 @@ export class App {
       this.storeName = ''; this.storeCode = ''; await this.loadTenant(tenant);
       this.notice.set('門店已建立。');
     });
+  }
+
+  async saveBranding():Promise<void> {
+    const tenant=this.selected(); if(!tenant)return;
+    await this.guard(async()=>{const brand=await this.request<Branding>(`${this.path(tenant)}/branding/`,'PATCH',{brand_name:this.brandName,primary_color:this.primaryColor,accent_color:this.accentColor});this.branding.set(brand);this.notice.set('租戶品牌設定已儲存。');});
+  }
+
+  async uploadLogo(event:Event):Promise<void> {
+    const tenant=this.selected();const file=(event.target as HTMLInputElement).files?.[0];if(!tenant||!file)return;
+    await this.guard(async()=>{const form=new FormData();form.set('image',file);const brand=await this.requestForm<Branding>(`${this.path(tenant)}/branding/logo/`,'POST',form);this.branding.set(brand);this.notice.set('租戶 Logo 已更新。');});
+    (event.target as HTMLInputElement).value='';
+  }
+
+  async removeLogo():Promise<void> {
+    const tenant=this.selected();if(!tenant)return;
+    await this.guard(async()=>{const response=await fetch(`${this.path(tenant)}/branding/logo/`,{method:'DELETE',credentials:'same-origin',headers:{'X-CSRFToken':this.csrfToken}});if(!response.ok)throw new Error('無法移除 Logo。');this.branding.update(brand=>brand?{...brand,logo_url:null}:null);this.notice.set('租戶 Logo 已移除。');});
   }
 
   async toggleStore(store: Store): Promise<void> {

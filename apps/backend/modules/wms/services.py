@@ -87,6 +87,36 @@ def update_product(request, tenant_id, product_id, data):
 
 
 @transaction.atomic
+def set_product_image(request, tenant_id, product_id, image):
+    member = _admin(request, tenant_id)
+    product = get_object_or_404(Product.objects.select_for_update(), tenant=member.tenant, pk=product_id)
+    old_name = product.image.name if product.image else ""
+    storage = product.image.storage
+    product.image = image
+    product.version += 1
+    product.save(update_fields=["image", "version", "updated_at"])
+    if old_name:
+        transaction.on_commit(lambda: storage.delete(old_name))
+    audit(request, "wms.product.image.updated", tenant=member.tenant, target=product.pk)
+    return product
+
+
+@transaction.atomic
+def remove_product_image(request, tenant_id, product_id):
+    member = _admin(request, tenant_id)
+    product = get_object_or_404(Product.objects.select_for_update(), tenant=member.tenant, pk=product_id)
+    if product.image:
+        old_name = product.image.name
+        storage = product.image.storage
+        product.image = ""
+        product.version += 1
+        product.save(update_fields=["image", "version", "updated_at"])
+        transaction.on_commit(lambda: storage.delete(old_name))
+        audit(request, "wms.product.image.deleted", tenant=member.tenant, target=product.pk)
+    return product
+
+
+@transaction.atomic
 def update_warehouse(request, tenant_id, warehouse_id, data):
     member = _admin(request, tenant_id)
     warehouse = get_object_or_404(Warehouse, tenant=member.tenant, pk=warehouse_id)

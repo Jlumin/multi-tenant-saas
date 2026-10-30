@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from platform_core.images import tenant_asset_path, validate_raster_image
 
 
 class Product(models.Model):
@@ -7,6 +8,7 @@ class Product(models.Model):
     tenant = models.ForeignKey("platform_core.Tenant", on_delete=models.PROTECT)
     code = models.CharField(max_length=40)
     name = models.CharField(max_length=120)
+    image = models.ImageField(upload_to=tenant_asset_path, blank=True, validators=[validate_raster_image])
     base_unit = models.CharField(max_length=20, default="PCS")
     is_active = models.BooleanField(default=True)
     version = models.PositiveIntegerField(default=1)

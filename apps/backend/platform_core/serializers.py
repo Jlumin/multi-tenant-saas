@@ -3,6 +3,21 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from .models import AuditEvent, Membership, Store
+from .images import validate_raster_image
+
+
+class RasterImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        image = super().to_internal_value(data)
+        try:
+            validate_raster_image(image)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+        return image
+
+
+class ImageUploadInput(serializers.Serializer):
+    image = RasterImageField(allow_empty_file=False)
 
 
 class StoreSerializer(serializers.ModelSerializer):

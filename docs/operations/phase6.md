@@ -14,6 +14,8 @@ $archive = Get-ChildItem .backups/*.dump | Sort-Object LastWriteTime -Descending
 
 備份以 PostgreSQL custom archive 格式產生，並另存 SHA-256 sidecar；restore 前會比對雜湊，還原後確認 `django_migrations` 可讀且有 migration 記錄。這是同一個本機 PostgreSQL container 內的隔離 database 練習，不是正式環境的災難復原演練，也不能證明 offsite copy 可用。備份包含個資且未加密；`.backups/` 已加入 Git ignore。正式環境需加密、異地複製、限制存取，並在獨立非正式環境還原。
 
+Phase 7 的 Logo 與商品圖片位於 Compose `media_data` volume，不在 PostgreSQL dump 內。上線前須建立資料庫與 media volume 一致時間點的備份、加密異地保存，並在隔離環境一起還原驗證；目前 `tools/postgres-backup.ps1` 只處理資料庫，不能作為圖片備份。
+
 部署工作目錄使用部署專用且權限受限的 env 檔，由 secret manager 注入實際秘密；`config/production.env.example` 只含待替換範本值，不可直接部署。production overlay 會要求明確的 hostname、HTTPS origin 與 HSTS 秒數：
 
 ```powershell

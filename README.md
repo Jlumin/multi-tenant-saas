@@ -1,6 +1,6 @@
-# SME Cloud — Phase 5 Restaurant
+# SME Cloud — Phase 7 Tenant Branding
 
-Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actions 的 Modular Monolith Monorepo。Phase 1 提供平台登入、租戶成員、逐店授權、角色與審計管理；Phase 2 加入 WMS 商品、包裝、倉庫、儲位、一般入出庫及庫存流水；Phase 3 加入 CRM 會員／同意紀錄與登入限定的 E-Commerce 上架、訂單、庫存預留和 sandbox 付款；Phase 4 加入 HR 員工排班與出勤；Phase 5 加入 Restaurant 共用菜單、QR 點餐與現金 POS。E-Commerce 尚未開放公開購物網站或真實金流；Restaurant QR 是限桌號 token 的公開 API 例外，目前只收現金、不串 WMS。舊版 Mini WMS 是另一套獨立程式，不屬於此 SME Cloud repository，也沒有進行程式整合或資料遷移。
+Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actions 的 Modular Monolith Monorepo。Phase 1 提供平台登入、租戶成員、逐店授權、角色與審計管理；Phase 2 加入 WMS 商品、包裝、倉庫、儲位、一般入出庫及庫存流水；Phase 3 加入 CRM 會員／同意紀錄與登入限定的 E-Commerce 上架、訂單、庫存預留和 sandbox 付款；Phase 4 加入 HR 員工排班與出勤；Phase 5 加入 Restaurant 共用菜單、QR 點餐與現金 POS；Phase 7 加入租戶品牌設定及受權限保護的 Logo／商品圖片。E-Commerce 尚未開放公開購物網站或真實金流；Restaurant QR 是限桌號 token 的公開 API 例外，目前只收現金、不串 WMS。舊版 Mini WMS 是另一套獨立程式，不屬於此 SME Cloud repository，也沒有進行程式整合或資料遷移。
 
 ## 目錄
 
@@ -13,6 +13,7 @@ Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actio
 - docs/architecture、docs/database、docs/security、docs/roadmap：架構及五模組規劃
 - .github/workflows/ci.yml：後端、前端、依賴／秘密掃描及 Compose 檢查；Dependabot 每週檢查更新
 - [Phase 6 營運準備](docs/operations/phase6.md)：備份/還原、production 設定、監控與回滾
+- [Phase 7 品牌與圖片管理](docs/architecture/tenant-branding-phase7.md)：租戶專屬品牌外觀、Logo 與 WMS 商品圖
 
 ## Docker 開發環境
 

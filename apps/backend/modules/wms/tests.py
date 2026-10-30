@@ -1,12 +1,18 @@
 from concurrent.futures import ThreadPoolExecutor
+import base64
+from io import BytesIO
+import tempfile
 from threading import Barrier
 from unittest.mock import patch
 import uuid
 
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, connections, transaction
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, TransactionTestCase
+from django.test.utils import override_settings
 from rest_framework.test import APIClient
+from PIL import Image
 
 from platform_core.models import AuditEvent, Membership, Tenant
 from .models import (
@@ -86,6 +92,54 @@ class WmsApiTests(TestCase):
         self.assertEqual(self.client.get(self.url("products", self.other_tenant)).status_code, 404)
         anon = APIClient()
         self.assertEqual(anon.get(self.url("products")).status_code, 403)
+
+    def test_product_image_upload_is_admin_only_tenant_scoped_and_reused_by_ecommerce(self):
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNUyIhmYGBgYmBgYGBgAAAKkwDnCDDOygAAAABJRU5ErkJggg==")
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            image_url = self.url(f"products/{self.product.pk}/image")
+            upload = self.client.post(image_url, {"image": SimpleUploadedFile("../bolt.png", png, content_type="image/png")}, format="multipart")
+            self.assertEqual(upload.status_code, 200, upload.data)
+            self.assertEqual(upload.data["image_url"], image_url)
+            self.assertTrue(Product.objects.get(pk=self.product.pk).image.name.startswith(f"tenants/{self.tenant.pk}/products/"))
+            served = self.client.get(upload.data["image_url"])
+            self.assertEqual(served.status_code, 200)
+            self.assertEqual(served["Content-Type"], "image/png")
+            self.client.force_authenticate(self.manager_user)
+            self.assertEqual(self.client.post(image_url, {"image": SimpleUploadedFile("bolt.png", png, content_type="image/png")}, format="multipart").status_code, 403)
+            self.assertEqual(self.client.get(image_url).status_code, 200)
+            self.client.force_authenticate(self.other_user)
+            self.assertEqual(self.client.get(image_url).status_code, 404)
+            self.client.force_authenticate(self.admin_user)
+            listing = self.client.post(f"/api/v1/tenants/{self.tenant.pk}/ecommerce/listings/", {
+                "product_id": str(self.product.pk), "warehouse_id": str(self.warehouse.pk),
+                "title": "Part with image", "currency": "TWD", "price": "3.00",
+            }, format="json")
+            self.assertEqual(listing.status_code, 201, listing.data)
+            self.assertEqual(listing.data["product_image_url"], image_url)
+            bad = self.client.post(image_url, {"image": SimpleUploadedFile("bad.png", b"not an image", content_type="image/png")}, format="multipart")
+            self.assertEqual(bad.status_code, 400)
+            deleted = self.client.delete(image_url)
+            self.assertEqual(deleted.status_code, 200)
+            self.assertIsNone(deleted.data["image_url"])
+
+    def test_product_image_upload_rejects_size_and_dimension_limits(self):
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            image_url = self.url(f"products/{self.product.pk}/image")
+            oversized = self.client.post(
+                image_url,
+                {"image": SimpleUploadedFile("large.png", b"x" * (5 * 1024 * 1024 + 1), content_type="image/png")},
+                format="multipart",
+            )
+            self.assertEqual(oversized.status_code, 400, oversized.data)
+
+            image_bytes = BytesIO()
+            Image.new("RGB", (4097, 1), "white").save(image_bytes, format="PNG")
+            too_wide = self.client.post(
+                image_url,
+                {"image": SimpleUploadedFile("wide.png", image_bytes.getvalue(), content_type="image/png")},
+                format="multipart",
+            )
+            self.assertEqual(too_wide.status_code, 400, too_wide.data)
 
     def test_warehouse_creation_creates_default_location_and_scopes_children(self):
         response = self.client.post(self.url("warehouses"), {"code": "WEST", "name": "West depot"}, format="json")

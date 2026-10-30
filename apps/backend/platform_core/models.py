@@ -1,7 +1,9 @@
 import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
+from .images import tenant_asset_path, validate_raster_image
 
 
 class Tenant(models.Model):
@@ -10,6 +12,21 @@ class Tenant(models.Model):
     slug = models.SlugField(max_length=80, unique=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TenantBranding(models.Model):
+    tenant = models.OneToOneField(Tenant, primary_key=True, on_delete=models.PROTECT, related_name="branding")
+    brand_name = models.CharField(max_length=120, blank=True)
+    primary_color = models.CharField(max_length=7, default="#17675B", validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$")])
+    accent_color = models.CharField(max_length=7, default="#39746B", validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$")])
+    logo = models.ImageField(upload_to=tenant_asset_path, blank=True, validators=[validate_raster_image])
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(primary_color__regex=r"^#[0-9A-Fa-f]{6}$"), name="platform_brand_primary_hex"),
+            models.CheckConstraint(condition=models.Q(accent_color__regex=r"^#[0-9A-Fa-f]{6}$"), name="platform_brand_accent_hex"),
+        ]
 
 
 class Store(models.Model):
