@@ -7,7 +7,7 @@
 - 後台租戶管理員可選擇啟用／停用客戶店面；資料庫預設關閉，既有租戶不會因 migration 而公開。
 - `/shop/{tenant_slug}/` 提供租戶品牌、Logo、上架商品、價格、商品圖片與有貨／缺貨狀態；支援搜尋、分頁載入及僅存在瀏覽器記憶體的購物清單。
 - 公開 API 只讀，不建立訂單、不預留庫存、不收集客戶資料；結帳介面標示尚未開放。
-- 專項測試涵蓋未啟用 404、啟用後目錄與公開圖片、下架／停用後不公開、搜尋及不回傳精確庫存與客戶欄位。
+- 專項測試涵蓋未啟用 404、啟用後目錄與公開圖片、跨租戶圖片拒絕、下架／停用後不公開、搜尋、不回傳精確庫存與客戶欄位，以及超過 60 次／分鐘後回傳 429。
 
 ## 本機驗證
 
@@ -15,8 +15,8 @@
 |---|---|
 | `python manage.py check` | 通過，無系統問題 |
 | `python manage.py makemigrations --check --dry-run` | 通過，No changes detected |
-| `python manage.py test modules.ecommerce` | 通過，9 tests |
-| `python manage.py test` | 通過，79 tests |
+| `python manage.py test modules.ecommerce` | 通過，10 tests |
+| `python manage.py test` | 通過，80 tests |
 | `npm run typecheck` | 通過 |
 | `npm run build` | 通過，Angular production build 完成 |
 | Docker Compose dev services | backend、PostgreSQL、frontend 均 healthy |

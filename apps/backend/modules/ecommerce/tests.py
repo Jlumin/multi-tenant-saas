@@ -2,6 +2,7 @@ import uuid
 import base64
 import tempfile
 
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -194,6 +195,13 @@ class EcommerceFlowTests(TestCase):
             self.assertEqual(image.status_code, 200)
             self.assertEqual(image["Cache-Control"], "public, max-age=300")
 
+            # A different enabled tenant must not be able to expose this tenant's product image.
+            TenantBranding.objects.create(tenant=self.other_tenant, storefront_enabled=True)
+            cross_tenant_image = public.get(
+                f"/api/v1/storefronts/{self.other_tenant.slug}/products/{self.product.pk}/image/",
+            )
+            self.assertEqual(cross_tenant_image.status_code, 404)
+
             brand.storefront_enabled = False
             brand.save(update_fields=["storefront_enabled", "updated_at"])
             self.assertEqual(public.get(endpoint).status_code, 404)
@@ -207,3 +215,15 @@ class EcommerceFlowTests(TestCase):
         self.assertEqual(response.data["count"], 0)
         Listing.objects.filter(pk=listing["id"]).update(is_active=False)
         self.assertEqual(APIClient().get(f"/api/v1/storefronts/{self.tenant.slug}/").data["count"], 0)
+
+    def test_public_storefront_is_rate_limited(self):
+        TenantBranding.objects.create(tenant=self.tenant, storefront_enabled=True)
+        cache.clear()
+        try:
+            public = APIClient()
+            endpoint = f"/api/v1/storefronts/{self.tenant.slug}/"
+            for _ in range(60):
+                self.assertEqual(public.get(endpoint).status_code, 200)
+            self.assertEqual(public.get(endpoint).status_code, 429)
+        finally:
+            cache.clear()
