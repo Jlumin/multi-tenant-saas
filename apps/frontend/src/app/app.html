@@ -1,8 +1,10 @@
 @if (qrToken(); as token) {
   <app-qr-ordering [token]="token" />
+} @else if (storefrontSlug(); as slug) {
+  <app-ecommerce-storefront [tenantSlug]="slug" />
 } @else {
 <main [style.--brand-primary]="branding()?.primary_color" [style.--brand-accent]="branding()?.accent_color">
-  <header><div><p class="eyebrow">SME CLOUD · PHASE 7</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
+  <header><div><p class="eyebrow">SME CLOUD · PHASE 8</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
     @if (identity() && branding(); as brand) { <div class="brand-strip">@if (brand.logo_url) { <img class="brand-logo" [src]="brand.logo_url" [alt]="brand.brand_name + ' Logo'"> }<strong>{{ brand.brand_name }}</strong></div> }
     @if (identity(); as me) { <div class="account"><span>{{ me.username }}</span><button type="button" (click)="logout()" [disabled]="busy()">登出</button></div> }
   </header>
@@ -61,14 +63,16 @@
           </article>
         } @empty { <p>目前沒有可顯示的門店。</p> }</div>
       </section>
-      <section><h2>品牌外觀</h2><p>設定只會套用在目前租戶。支援 JPEG、PNG、WebP，單張圖片上限 5 MiB。</p>
+      <section><h2>品牌外觀與客戶店面</h2><p>設定只會套用在目前租戶。支援 JPEG、PNG、WebP，單張圖片上限 5 MiB。公開店面啟用後，任何人都能瀏覽上架商品、售價與有貨／缺貨狀態。</p>
         @if (tenant.role === 'admin') {
           <form (ngSubmit)="saveBranding()"><fieldset class="inline-form" [disabled]="busy()">
             <label>品牌名稱<input name="brandName" [(ngModel)]="brandName" maxlength="120" required></label>
             <label>主色<input name="primaryColor" type="color" [(ngModel)]="primaryColor" required></label>
             <label>輔色<input name="accentColor" type="color" [(ngModel)]="accentColor" required></label>
+            <label class="check"><input name="storefrontEnabled" type="checkbox" [(ngModel)]="storefrontEnabled">啟用公開客戶店面</label>
             <button class="primary" type="submit">儲存品牌設定</button>
           </fieldset></form>
+          @if (branding()?.storefront_enabled && branding()?.storefront_url) { <p>客戶店面：<a [href]="branding()!.storefront_url!" target="_blank" rel="noopener">{{ locationOrigin }}{{ branding()!.storefront_url }}</a></p> }
           <div class="inline-form"><label>上傳 Logo<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadLogo($event)" [disabled]="busy()"></label>
             @if (branding()?.logo_url) { <button type="button" (click)="removeLogo()" [disabled]="busy()">移除 Logo</button> }
           </div>

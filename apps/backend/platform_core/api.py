@@ -22,6 +22,7 @@ class BrandingInput(serializers.Serializer):
     brand_name = serializers.CharField(max_length=120, allow_blank=True, trim_whitespace=True, required=False)
     primary_color = serializers.RegexField(r"^#[0-9A-Fa-f]{6}$", required=False)
     accent_color = serializers.RegexField(r"^#[0-9A-Fa-f]{6}$", required=False)
+    storefront_enabled = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         unknown = set(self.initial_data) - set(self.fields) if isinstance(self.initial_data, dict) else set()
@@ -38,10 +39,13 @@ class BrandingInput(serializers.Serializer):
 def _branding_payload(request, tenant, branding):
     return {
         "tenant_id": str(tenant.pk),
+        "tenant_slug": tenant.slug,
         "brand_name": branding.brand_name or tenant.name,
         "primary_color": branding.primary_color,
         "accent_color": branding.accent_color,
         "logo_url": f"/api/v1/tenants/{tenant.pk}/branding/logo/" if branding.logo else None,
+        "storefront_enabled": branding.storefront_enabled,
+        "storefront_url": f"/shop/{tenant.slug}/" if branding.storefront_enabled else None,
     }
 
 

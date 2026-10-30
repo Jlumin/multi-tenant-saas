@@ -1,10 +1,14 @@
 import uuid
+import base64
+import tempfile
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.test.utils import override_settings
 from rest_framework.test import APIClient
 
-from platform_core.models import Membership, Tenant
+from platform_core.models import Membership, Tenant, TenantBranding
 from modules.crm.models import Customer
 from modules.wms.models import Location, PackageUnit, Product, StockBalance, StockMovement, Warehouse, StockReservation
 from modules.wms.application import available_quantity
@@ -152,3 +156,54 @@ class EcommerceFlowTests(TestCase):
         self.client.post(self.tenant_path + f"ecommerce/orders/{order.data['id']}/capture-sandbox-payment/", {}, format="json")
         canceled = self.client.post(self.tenant_path + f"ecommerce/orders/{order.data['id']}/cancel/", {}, format="json")
         self.assertEqual(canceled.status_code, 409)
+
+    def test_public_storefront_requires_opt_in_and_exposes_only_safe_catalog_fields(self):
+        listing = self._listing()
+        public = APIClient()
+        endpoint = f"/api/v1/storefronts/{self.tenant.slug}/"
+        self.assertEqual(public.get(endpoint).status_code, 404)
+
+        brand = TenantBranding.objects.create(
+            tenant=self.tenant, brand_name="Shop Tenant Public", primary_color="#114477",
+            accent_color="#22AA77", storefront_enabled=True,
+        )
+        stock = StockBalance.objects.get(tenant=self.tenant, product=self.product, warehouse=self.warehouse, location=self.location)
+        stock.quantity = 0
+        stock.save(update_fields=["quantity", "updated_at"])
+
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNUyIhmYGBgYmBgYGBgAAAKkwDnCDDOygAAAABJRU5ErkJggg==")
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            logo = self.client.post(f"/api/v1/tenants/{self.tenant.pk}/branding/logo/", {"image": SimpleUploadedFile("brand.png", png, content_type="image/png")}, format="multipart")
+            self.assertEqual(logo.status_code, 200, logo.data)
+            product_image = self.client.post(f"/api/v1/tenants/{self.tenant.pk}/wms/products/{self.product.pk}/image/", {"image": SimpleUploadedFile("product.png", png, content_type="image/png")}, format="multipart")
+            self.assertEqual(product_image.status_code, 200, product_image.data)
+
+            response = public.get(endpoint)
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response["Cache-Control"], "public, max-age=60")
+            self.assertEqual(response.data["brand_name"], "Shop Tenant Public")
+            self.assertEqual(response.data["logo_url"], f"/api/v1/storefronts/{self.tenant.slug}/logo/")
+            self.assertEqual(response.data["count"], 1)
+            self.assertEqual(response.data["results"][0]["listing_id"], listing["id"])
+            self.assertFalse(response.data["results"][0]["is_available"])
+            self.assertEqual(response.data["results"][0]["product_image_url"], f"/api/v1/storefronts/{self.tenant.slug}/products/{self.product.pk}/image/")
+            self.assertNotIn("available_quantity", response.data["results"][0])
+            self.assertNotIn("customer_email", response.data)
+            self.assertEqual(public.get(response.data["logo_url"]).status_code, 200)
+            image = public.get(response.data["results"][0]["product_image_url"])
+            self.assertEqual(image.status_code, 200)
+            self.assertEqual(image["Cache-Control"], "public, max-age=300")
+
+            brand.storefront_enabled = False
+            brand.save(update_fields=["storefront_enabled", "updated_at"])
+            self.assertEqual(public.get(endpoint).status_code, 404)
+            self.assertEqual(public.get(f"/api/v1/storefronts/{self.tenant.slug}/products/{self.product.pk}/image/").status_code, 404)
+
+    def test_public_storefront_search_is_limited_to_active_listings(self):
+        listing = self._listing()
+        TenantBranding.objects.create(tenant=self.tenant, storefront_enabled=True)
+        response = APIClient().get(f"/api/v1/storefronts/{self.tenant.slug}/?q=missing")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+        Listing.objects.filter(pk=listing["id"]).update(is_active=False)
+        self.assertEqual(APIClient().get(f"/api/v1/storefronts/{self.tenant.slug}/").data["count"], 0)

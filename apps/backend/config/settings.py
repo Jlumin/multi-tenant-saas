@@ -52,7 +52,7 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "platform_core.errors.exception_handler",
     "DEFAULT_PAGINATION_CLASS": "platform_core.pagination.BoundedPagination",
     "PAGE_SIZE": 50,
-    "DEFAULT_THROTTLE_RATES": {"restaurant_qr": "20/minute"},
+    "DEFAULT_THROTTLE_RATES": {"restaurant_qr": "20/minute", "storefront_public": "60/minute"},
 }
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

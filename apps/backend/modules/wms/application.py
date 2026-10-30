@@ -40,6 +40,12 @@ def product_image_url(*, tenant_id, product_id):
     return reverse("wms-product-image", kwargs={"tenant_id": tenant_id, "product_id": product_id})
 
 
+def storefront_product_image(*, tenant_id, product_id):
+    """Return an active tenant product image file for an authorized storefront contract caller."""
+    product = Product.objects.filter(tenant_id=tenant_id, pk=product_id, is_active=True).only("id", "image").first()
+    return product.image if product and product.image else None
+
+
 def available_quantity(*, tenant_id, product_id, warehouse_id):
     quantity = StockBalance.objects.filter(tenant_id=tenant_id, product_id=product_id, warehouse_id=warehouse_id).aggregate(total=Sum("quantity"))["total"] or 0
     reserved = StockReservationLine.objects.filter(

@@ -47,6 +47,9 @@ urlpatterns += [
     path("api/v1/restaurant/qr/<str:token>/code.svg", restaurant_api.QrCode.as_view()),
 ]
 urlpatterns += [
+    path("api/v1/storefronts/<slug:tenant_slug>/", ecommerce_api.PublicStorefrontView.as_view(), name="public-storefront"),
+    path("api/v1/storefronts/<slug:tenant_slug>/logo/", ecommerce_api.PublicStorefrontLogo.as_view(), name="public-storefront-logo"),
+    path("api/v1/storefronts/<slug:tenant_slug>/products/<uuid:product_id>/image/", ecommerce_api.PublicStorefrontProductImage.as_view(), name="public-storefront-product-image"),
     path("api/v1/tenants/<uuid:tenant_id>/ecommerce/listings/", ecommerce_api.ListingList.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/ecommerce/orders/", ecommerce_api.OrderList.as_view()),
     path("api/v1/tenants/<uuid:tenant_id>/ecommerce/orders/<uuid:order_id>/<str:action>/", ecommerce_api.OrderAction.as_view()),

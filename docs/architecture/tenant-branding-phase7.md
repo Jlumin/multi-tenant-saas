@@ -1,6 +1,6 @@
 # Phase 7：租戶品牌與圖片管理
 
-Phase 7 在共用平台核心加入每租戶品牌設定，WMS 持有商品圖片；E-Commerce 只透過 WMS 公開應用服務取得租戶內商品圖片 URL，不直接讀取或寫入 WMS 表。餐飲菜單圖片、公開 storefront、CDN／物件儲存、圖片裁切及批次商品匯入不在此階段。
+Phase 7 在共用平台核心加入每租戶品牌設定，WMS 持有商品圖片；E-Commerce 只透過 WMS 公開應用服務取得租戶內商品圖片 URL，不直接讀取或寫入 WMS 表。餐飲菜單圖片、CDN／物件儲存、圖片裁切及批次商品匯入不在此階段。公開 storefront 另於 [Phase 8](ecommerce-storefront-phase8.md) 以明確 opt-in 唯讀方式新增。
 
 ## 功能
 

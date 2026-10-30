@@ -1,0 +1,8 @@
+# Phase 8 E-Commerce storefront security
+
+- Anonymous access is read-only and is opt-in per tenant (`TenantBranding.storefront_enabled`, default false). Disabled, inactive, unknown, or cross-tenant resources return 404.
+- The catalogue contains only active listings whose tenant product and specifically listed warehouse remain active. Public output includes product code/title, advertised price/currency, and a boolean `is_available`; it never includes exact inventory quantity, membership data, customer data, orders, or internal IDs beyond the listing/product UUIDs needed to fetch a published image.
+- Product image requests re-check storefront enablement and an active listing for the same tenant/product, then request the file through the WMS application contract. The separate Phase 7 authenticated image endpoint keeps its membership and role requirements.
+- Storefront API and image GET requests are scoped-throttled at 60/minute per client address. Production must configure a trusted proxy that overwrites forwarded client IP and a shared cache or edge rate limit suitable for multiple backend replicas. Validate actual ingress behavior before public deployment.
+- Catalogue responses are cacheable for at most 60 seconds and images for at most 300 seconds. Tenant administrators should expect this cache window after disabling a storefront or unpublishing an item. Do not serve private Phase 7 API paths through a public static-media origin.
+- The browser cart is ephemeral UI state only. There are no anonymous mutations, checkout, CRM customer creation, order reservation, or payment calls. Future checkout needs CSRF-safe session or a separately designed guest flow, idempotency, atomic WMS reservation, and abuse controls.

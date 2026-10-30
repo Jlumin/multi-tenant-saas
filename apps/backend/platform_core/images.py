@@ -62,3 +62,16 @@ def private_image_response(image):
     response["Cross-Origin-Resource-Policy"] = "same-origin"
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+def public_image_response(image):
+    if not image:
+        from rest_framework.exceptions import NotFound
+        raise NotFound()
+    response = FileResponse(image.open("rb"), content_type=image_content_type(image))
+    response["Cache-Control"] = "public, max-age=300"
+    response["Content-Disposition"] = 'inline; filename="image"'
+    response["Cross-Origin-Resource-Policy"] = "same-origin"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Referrer-Policy"] = "no-referrer"
+    return response

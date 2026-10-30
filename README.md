@@ -1,6 +1,6 @@
-# SME Cloud — Phase 7 Tenant Branding
+# SME Cloud — Phase 8 Customer Storefront
 
-Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actions 的 Modular Monolith Monorepo。Phase 1 提供平台登入、租戶成員、逐店授權、角色與審計管理；Phase 2 加入 WMS 商品、包裝、倉庫、儲位、一般入出庫及庫存流水；Phase 3 加入 CRM 會員／同意紀錄與登入限定的 E-Commerce 上架、訂單、庫存預留和 sandbox 付款；Phase 4 加入 HR 員工排班與出勤；Phase 5 加入 Restaurant 共用菜單、QR 點餐與現金 POS；Phase 7 加入租戶品牌設定及受權限保護的 Logo／商品圖片。E-Commerce 尚未開放公開購物網站或真實金流；Restaurant QR 是限桌號 token 的公開 API 例外，目前只收現金、不串 WMS。舊版 Mini WMS 是另一套獨立程式，不屬於此 SME Cloud repository，也沒有進行程式整合或資料遷移。
+Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actions 的 Modular Monolith Monorepo。Phase 1 提供平台登入、租戶成員、逐店授權、角色與審計管理；Phase 2 加入 WMS 商品、包裝、倉庫、儲位、一般入出庫及庫存流水；Phase 3 加入 CRM 會員／同意紀錄與登入限定的 E-Commerce 上架、訂單、庫存預留和 sandbox 付款；Phase 4 加入 HR 員工排班與出勤；Phase 5 加入 Restaurant 共用菜單、QR 點餐與現金 POS；Phase 7 加入租戶品牌與圖片；Phase 8 加入可由租戶管理員選擇啟用的公開客戶商品型錄、庫存狀態和購物清單。公開 E-Commerce 結帳、客戶登入與真實金流尚未開放；Restaurant QR 是限桌號 token 的公開 API 例外，目前只收現金、不串 WMS。舊版 Mini WMS 是另一套獨立程式，不屬於此 SME Cloud repository，也沒有進行程式整合或資料遷移。
 
 ## 目錄
 
@@ -14,6 +14,8 @@ Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actio
 - .github/workflows/ci.yml：後端、前端、依賴／秘密掃描及 Compose 檢查；Dependabot 每週檢查更新
 - [Phase 6 營運準備](docs/operations/phase6.md)：備份/還原、production 設定、監控與回滾
 - [Phase 7 品牌與圖片管理](docs/architecture/tenant-branding-phase7.md)：租戶專屬品牌外觀、Logo 與 WMS 商品圖
+- [Phase 8 客戶店面](docs/architecture/ecommerce-storefront-phase8.md)：公開商品瀏覽、品牌套用、庫存有／無提示與購物清單；結帳保留待後續設計
+- [Phase 8 驗證紀錄](docs/roadmap/phase8-validation.md)：自動測試結果與未完成的正式環境前置條件
 
 ## Docker 開發環境
 
@@ -27,7 +29,7 @@ Copy-Item .env.example .env
  docker compose exec backend python manage.py migrate --noinput
 ```
 
-首頁 http://localhost:4200；登入後可依租戶角色切換到 WMS 倉儲。API http://localhost:8000/api/v1/health/live/；資料庫就緒檢查 /api/v1/health/ready/。前端 /api 轉發至 backend。ready 只檢查連線，不代表 migration 已套用。開發伺服器只綁定本機，程式修改後重新 build。停止使用 `docker compose down`，保留資料 volume。這不是正式部署配置。
+首頁 http://localhost:4200；登入後由租戶管理員在「品牌外觀與客戶店面」啟用公開店面，即可開啟 `/shop/{租戶 slug}/`。WMS 圖片需先建立商品、入庫，再於 E-Commerce 建立上架，店面才會顯示可購買商品。API http://localhost:8000/api/v1/health/live/；資料庫就緒檢查 /api/v1/health/ready/。前端 /api 轉發至 backend。ready 只檢查連線，不代表 migration 已套用。開發伺服器只綁定本機，程式修改後重新 build。停止使用 `docker compose down`，保留資料 volume。這不是正式部署配置。
 
 若 Windows 出現 `docker-credential-desktop` 無法執行，可對本專案公開映像使用獨立的本機設定：將上述命令的 `docker compose` 改為 `docker --config .docker-local compose`。`.docker-local/` 已忽略，不修改系統 Docker 設定；私有 registry 仍需另行設定登入。
 

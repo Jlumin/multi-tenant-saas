@@ -5,11 +5,12 @@ import { CrmDashboard } from './modules/crm/crm-dashboard';
 import { EcommerceDashboard } from './modules/ecommerce/ecommerce-dashboard';
 import { HrDashboard } from './modules/hr/hr-dashboard';
 import { RestaurantDashboard, QrOrdering } from './modules/restaurant/restaurant-dashboard';
+import { EcommerceStorefront } from './modules/ecommerce/storefront';
 
 type Role = 'admin' | 'manager' | 'viewer';
 interface TenantMembership { tenant_id: string; tenant_name: string; role: Role }
 interface Identity { username: string; memberships: TenantMembership[] }
-interface Branding { tenant_id:string; brand_name:string; primary_color:string; accent_color:string; logo_url:string|null }
+interface Branding { tenant_id:string; tenant_slug:string; brand_name:string; primary_color:string; accent_color:string; logo_url:string|null; storefront_enabled:boolean; storefront_url:string|null }
 interface Store { id: string; name: string; code: string; is_active: boolean }
 interface Member { id: string; username: string; role: Role; is_active: boolean; store_ids: string[] }
 interface Audit { id: string; action: string; actor_id: number | null; target_id: string; request_id: string; created_at: string }
@@ -18,7 +19,7 @@ interface Page<T> { results: T[]; count: number; next: string | null }
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [FormsModule, WmsDashboard, CrmDashboard, EcommerceDashboard, HrDashboard, RestaurantDashboard, QrOrdering],
+  imports: [FormsModule, WmsDashboard, CrmDashboard, EcommerceDashboard, EcommerceStorefront, HrDashboard, RestaurantDashboard, QrOrdering],
   templateUrl: './app.html',
 })
 export class App {
@@ -26,6 +27,7 @@ export class App {
   readonly selected = signal<TenantMembership | null>(null);
   readonly branding = signal<Branding | null>(null);
   readonly qrToken = signal<string | null>(new URLSearchParams(window.location.search).get('qr'));
+  readonly storefrontSlug = signal<string | null>(window.location.pathname.match(/^\/shop\/([a-zA-Z0-9-]+)\/?$/)?.[1] ?? null);
   readonly moduleTab = signal<'platform' | 'wms' | 'crm' | 'ecommerce' | 'hr' | 'restaurant'>('platform');
   readonly stores = signal<Store[]>([]);
   readonly members = signal<Member[]>([]);
@@ -45,9 +47,11 @@ export class App {
   memberPassword = '';
   memberRole: Role = 'viewer';
   brandName = ''; primaryColor = '#17675B'; accentColor = '#39746B';
+  storefrontEnabled = false;
+  readonly locationOrigin = window.location.origin;
   private csrfToken = '';
 
-  constructor() { if (!this.qrToken()) void this.restore(); }
+  constructor() { if (!this.qrToken() && !this.storefrontSlug()) void this.restore(); }
 
   private async request<T>(url: string, method = 'GET', data?: unknown): Promise<T> {
     const response = await fetch(url, {
@@ -137,7 +141,7 @@ export class App {
       tenant.role === 'admin' ? this.request<Page<Audit>>(`${base}/audit/?limit=50`) : null,
       this.request<Branding>(`${base}/branding/`),
     ]);
-    this.branding.set(branding); this.brandName=branding.brand_name; this.primaryColor=branding.primary_color; this.accentColor=branding.accent_color;
+    this.branding.set(branding); this.brandName=branding.brand_name; this.primaryColor=branding.primary_color; this.accentColor=branding.accent_color; this.storefrontEnabled=branding.storefront_enabled;
     this.stores.set(stores.results); this.storeCount.set(stores.count);
     this.members.set(members?.results ?? []); this.memberCount.set(members?.count ?? 0);
     this.events.set(events?.results ?? []); this.auditCount.set(events?.count ?? 0);
@@ -168,7 +172,7 @@ export class App {
 
   async saveBranding():Promise<void> {
     const tenant=this.selected(); if(!tenant)return;
-    await this.guard(async()=>{const brand=await this.request<Branding>(`${this.path(tenant)}/branding/`,'PATCH',{brand_name:this.brandName,primary_color:this.primaryColor,accent_color:this.accentColor});this.branding.set(brand);this.notice.set('租戶品牌設定已儲存。');});
+    await this.guard(async()=>{const brand=await this.request<Branding>(`${this.path(tenant)}/branding/`,'PATCH',{brand_name:this.brandName,primary_color:this.primaryColor,accent_color:this.accentColor,storefront_enabled:this.storefrontEnabled});this.branding.set(brand);this.notice.set('租戶品牌與客戶店面設定已儲存。');});
   }
 
   async uploadLogo(event:Event):Promise<void> {
