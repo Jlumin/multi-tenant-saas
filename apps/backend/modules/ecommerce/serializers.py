@@ -16,6 +16,7 @@ class ListingInput(StrictSerializer):
     product_id = serializers.UUIDField()
     warehouse_id = serializers.UUIDField()
     title = serializers.CharField(max_length=160, trim_whitespace=True)
+    category = serializers.CharField(max_length=80, trim_whitespace=True, allow_blank=True, required=False, default="")
     currency = serializers.RegexField(r"^[A-Z]{3}$", default="TWD")
     price = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0)
 
@@ -26,7 +27,7 @@ class ListingOutput(serializers.ModelSerializer):
 
     class Meta:
         model = Listing
-        fields = ["id", "product_id", "warehouse_id", "product_code", "title", "currency", "price", "available_quantity", "product_image_url", "is_active", "version", "created_at"]
+        fields = ["id", "product_id", "warehouse_id", "product_code", "title", "category", "currency", "price", "available_quantity", "product_image_url", "is_active", "version", "created_at"]
         read_only_fields = fields
 
 

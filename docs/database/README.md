@@ -15,3 +15,5 @@ WMS Phase 2 新增 product/packageunit/warehouse/location/inventorydocument/docu
 Migration 納入 Git、CI 檢查未提交變更；採擴充→回填→切換→移除，避免同次發布破壞欄位。正式備份需加密、異地保存、定期還原演練，RPO/RTO 與保留期在上線前確認。Compose volume 是本機持久化，不是備份。不要對有用資料執行 `down -v`。Phase 6 提供本機 pg_dump 與隔離 database restore drill，未提供加密或 offsite 複製；詳見 [操作手冊](../operations/phase6.md)。
 
 Phase 8–9 storefront 僅在既有租戶品牌一對一資料新增公開啟用旗標、店面標題與介紹；無新增顧客或訂單 schema。欄位細節見 [Phase 9 店面內容](storefront-content-phase9.md)。
+
+Phase 10 將選填分類文字加入 E-Commerce Listing；不新增獨立分類資料表。詳見 [E-Commerce 分類欄位](ecommerce-storefront-phase10.md)。

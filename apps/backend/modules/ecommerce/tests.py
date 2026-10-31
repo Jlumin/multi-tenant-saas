@@ -53,10 +53,10 @@ class EcommerceFlowTests(TestCase):
         posted = self.client.post(self.tenant_path + f"wms/documents/{result.data['id']}/post/", {}, format="json")
         self.assertEqual(posted.status_code, 200, posted.data)
 
-    def _listing(self, warehouse=None, price="12.50"):
+    def _listing(self, warehouse=None, price="12.50", category=""):
         response = self.client.post(self.tenant_path + "ecommerce/listings/", {
             "product_id": str(self.product.pk), "warehouse_id": str((warehouse or self.warehouse).pk),
-            "title": "Widget sale", "currency": "TWD", "price": price,
+            "title": "Widget sale", "category": category, "currency": "TWD", "price": price,
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         return response.data
@@ -223,6 +223,21 @@ class EcommerceFlowTests(TestCase):
         self.assertEqual(response.data["count"], 0)
         Listing.objects.filter(pk=listing["id"]).update(is_active=False)
         self.assertEqual(APIClient().get(f"/api/v1/storefronts/{self.tenant.slug}/").data["count"], 0)
+
+    def test_public_storefront_lists_and_filters_categories(self):
+        self._listing(category="底盤零件")
+        self._listing(self.other_warehouse, category="電裝")
+        TenantBranding.objects.create(tenant=self.tenant, storefront_enabled=True)
+        public = APIClient()
+        endpoint = f"/api/v1/storefronts/{self.tenant.slug}/"
+        all_items = public.get(endpoint)
+        self.assertEqual(all_items.data["categories"], ["底盤零件", "電裝"])
+        filtered = public.get(endpoint, {"category": "電裝"})
+        self.assertEqual(filtered.data["count"], 1)
+        self.assertEqual(filtered.data["results"][0]["category"], "電裝")
+        self.assertEqual(filtered.data["categories"], ["底盤零件", "電裝"])
+        too_long = public.get(endpoint, {"category": "x" * 81})
+        self.assertEqual(too_long.status_code, 400)
 
     def test_public_storefront_is_rate_limited(self):
         TenantBranding.objects.create(tenant=self.tenant, storefront_enabled=True)

@@ -36,7 +36,7 @@ def create_listing(request, tenant_id, data):
     try:
         listing = Listing.objects.create(
             tenant=member.tenant, product_id=product["product_id"], warehouse_id=product["warehouse_id"],
-            product_code=product["product_code"], title=data["title"], currency=data["currency"], price=data["price"],
+            product_code=product["product_code"], title=data["title"], category=data.get("category", ""), currency=data["currency"], price=data["price"],
         )
     except IntegrityError as exc:
         raise ValidationError("This WMS product already has a listing for the selected warehouse.") from exc

@@ -18,6 +18,8 @@ Angular + TypeScript、Django + DRF、PostgreSQL、Docker Compose、GitHub Actio
 - [Phase 8 驗證紀錄](docs/roadmap/phase8-validation.md)：自動測試結果與未完成的正式環境前置條件
 - [Phase 9 驗證紀錄](docs/roadmap/phase9-validation.md)：店面文案客製化與商品詳情顯示
 - [Phase 9 資料庫欄位](docs/database/storefront-content-phase9.md)：每租戶店面標題與介紹
+- [Phase 10 驗證紀錄](docs/roadmap/phase10-validation.md)：上架分類與客戶分類篩選
+- [Phase 10 資料庫欄位](docs/database/ecommerce-storefront-phase10.md)：商品上架的可選分類文字
 
 ## Docker 開發環境
 

@@ -29,3 +29,5 @@ production 部署公開 API 前須確認 trusted proxy client IP 設定、共享
 ## Phase 9 展示客製化
 
 租戶管理員可另設店面標題（120 字內）及介紹（240 字內），空白時回退至通用預設文字。公開目錄回應只傳此公開文案，品牌管理端由既有 admin-only branding API 寫入並納入審計。商品卡可開啟原生 dialog 檢視同一份公開 listing 的圖片、編號、售價與有貨狀態；沒有新增公開 API 或 CRM／訂單資料存取。詳見 [Phase 9 驗證](../roadmap/phase9-validation.md)。
+
+Phase 10 為 E-Commerce listing 新增選填分類文字（最多 80 字）；管理員在上架時輸入，顧客店面提供篩選器。公開 API 只回傳該租戶目前可公開的有效 listing 分類，不提供任意分類列舉端點；篩選不改變租戶隔離、可售量保密或唯讀規則。詳見 [Phase 10 資料庫欄位](../database/ecommerce-storefront-phase10.md)。

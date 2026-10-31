@@ -19,3 +19,5 @@ Phase 7 新增租戶品牌與受保護的圖片上傳；格式、大小、像素
 Phase 8 公開店面 API 僅在租戶啟用後讀取目錄、品牌與上架商品圖片；各路徑以 tenant slug 和有效上架範圍再次授權，60 requests/minute 限流。production 需在可信代理正確傳遞 client IP 並評估共享快取／edge rate limit；切勿暴露未啟用租戶或未上架商品圖片。詳細規則見 [Phase 8 客戶店面安全](ecommerce-storefront-phase8.md)。
 
 Phase 9 加入管理員維護的公開店面標題與介紹及唯讀商品詳情 dialog。文案限制長度、受租戶管理員 RBAC 與既有審計保護；公開詳情只重用已發布型錄欄位，不增加匿名寫入或個資暴露。
+
+Phase 10 category filter 只處理啟用租戶中有效上架商品的分類文字，輸入上限 80 字；分類選項與結果沿用同一租戶範圍及既有 60/minute public throttle。

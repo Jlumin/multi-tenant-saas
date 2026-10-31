@@ -1,6 +1,6 @@
 # SME Cloud 架構與模組規劃
 
-狀態：Phase 1 平台基礎、WMS Phase 2、Phase 3 CRM／E-Commerce、Phase 4 HR 第一版、Phase 5 Restaurant 第一版、Phase 8 客戶店面及 Phase 9 店面文案／商品詳情已實作，詳見 [Phase 1 決策與 API](phase1-platform.md)、[WMS Phase 2](wms-phase2.md)、[CRM／E-Commerce Phase 3](crm-ecommerce-phase3.md)、[HR Phase 4](hr-phase4.md)、[Restaurant Phase 5](restaurant-phase5.md) 與 [E-Commerce 客戶店面 Phase 8–9](ecommerce-storefront-phase8.md)。採 Monorepo + Modular Monolith：單一 Angular SPA、單一 Django/DRF 部署單元、單一 PostgreSQL 資料庫。未引入微服務、訊息佇列或背景工作系統。
+狀態：Phase 1 平台基礎、WMS Phase 2、Phase 3 CRM／E-Commerce、Phase 4 HR 第一版、Phase 5 Restaurant 第一版及 Phase 8–10 客戶店面功能已實作，詳見 [Phase 1 決策與 API](phase1-platform.md)、[WMS Phase 2](wms-phase2.md)、[CRM／E-Commerce Phase 3](crm-ecommerce-phase3.md)、[HR Phase 4](hr-phase4.md)、[Restaurant Phase 5](restaurant-phase5.md) 與 [E-Commerce 客戶店面 Phase 8–10](ecommerce-storefront-phase8.md)。採 Monorepo + Modular Monolith：單一 Angular SPA、單一 Django/DRF 部署單元、單一 PostgreSQL 資料庫。未引入微服務、訊息佇列或背景工作系統。
 
 ## 版本決策
 

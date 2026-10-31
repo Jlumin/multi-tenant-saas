@@ -4,7 +4,7 @@
   <app-ecommerce-storefront [tenantSlug]="slug" />
 } @else {
 <main [style.--brand-primary]="branding()?.primary_color" [style.--brand-accent]="branding()?.accent_color">
-  <header><div><p class="eyebrow">SME CLOUD · PHASE 8</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
+  <header><div><p class="eyebrow">SME CLOUD · PHASE 10</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
     @if (identity() && branding(); as brand) { <div class="brand-strip">@if (brand.logo_url) { <img class="brand-logo" [src]="brand.logo_url" [alt]="brand.brand_name + ' Logo'"> }<strong>{{ brand.brand_name }}</strong></div> }
     @if (identity(); as me) { <div class="account"><span>{{ me.username }}</span><button type="button" (click)="logout()" [disabled]="busy()">登出</button></div> }
   </header>

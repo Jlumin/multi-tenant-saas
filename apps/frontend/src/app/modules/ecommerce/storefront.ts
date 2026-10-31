@@ -5,6 +5,7 @@ interface StorefrontProduct {
   listing_id: string;
   product_code: string;
   title: string;
+  category: string;
   price: string;
   currency: string;
   is_available: boolean;
@@ -20,6 +21,7 @@ interface StorefrontPage {
   accent_color: string;
   logo_url: string | null;
   results: StorefrontProduct[];
+  categories: string[];
   count: number;
   limit: number;
   offset: number;
@@ -44,8 +46,10 @@ export class EcommerceStorefront implements OnChanges {
   readonly error = signal('');
   readonly offset = signal(0);
   readonly count = signal(0);
+  readonly categories = signal<string[]>([]);
   readonly pageSize = 24;
   query = '';
+  category = '';
   @ViewChild('productDialog') private productDialog?: ElementRef<HTMLDialogElement>;
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -53,6 +57,8 @@ export class EcommerceStorefront implements OnChanges {
   }
 
   async search(): Promise<void> { await this.load(true); }
+
+  async filterCategory(value: string): Promise<void> { this.category = value; await this.load(true); }
 
   async loadMore(): Promise<void> { await this.load(false); }
 
@@ -64,12 +70,14 @@ export class EcommerceStorefront implements OnChanges {
     const nextOffset = reset ? 0 : this.offset();
     const params = new URLSearchParams({ limit: String(this.pageSize), offset: String(nextOffset) });
     if (this.query.trim()) params.set('q', this.query.trim());
+    if (this.category) params.set('category', this.category);
     try {
       const response = await fetch(`/api/v1/storefronts/${slug}/?${params}`, { credentials: 'omit' });
       const data = await response.json() as StorefrontPage & { error?: { details?: string } };
       if (!response.ok) throw new Error(data.error?.details ?? (response.status === 404 ? '這個店面目前沒有開放。' : '暫時無法載入商品，請稍後再試。'));
       this.storefront.set(data);
       this.count.set(data.count);
+      this.categories.set(data.categories);
       this.offset.set(nextOffset + data.results.length);
       this.products.update(current => reset ? data.results : [...current, ...data.results]);
     } catch (error) {

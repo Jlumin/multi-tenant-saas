@@ -34,6 +34,9 @@ class PublicStorefrontView(APIView):
     def get(self, request, tenant_slug):
         tenant, branding = _enabled_storefront(tenant_slug)
         search = request.query_params.get("q", "").strip()[:80]
+        category = request.query_params.get("category", "").strip()
+        if len(category) > 80:
+            raise ValidationError({"category": "Ensure this field has no more than 80 characters."})
         try:
             limit = min(100, max(1, int(request.query_params.get("limit", "24"))))
             offset = max(0, int(request.query_params.get("offset", "0")))
@@ -51,6 +54,9 @@ class PublicStorefrontView(APIView):
             except ValidationError:
                 continue
             visible.append(listing)
+        categories = sorted({listing.category for listing in visible if listing.category}, key=str.casefold)
+        if category:
+            visible = [listing for listing in visible if listing.category == category]
         total = len(visible)
         rows = []
         for listing in visible[offset:offset + limit]:
@@ -59,6 +65,7 @@ class PublicStorefrontView(APIView):
                 "listing_id": str(listing.pk),
                 "product_code": listing.product_code,
                 "title": listing.title,
+                "category": listing.category,
                 "price": listing.price,
                 "currency": listing.currency,
                 "is_available": available_quantity(
@@ -77,6 +84,7 @@ class PublicStorefrontView(APIView):
             "accent_color": branding.accent_color,
             "logo_url": f"/api/v1/storefronts/{tenant.slug}/logo/" if branding.logo else None,
             "results": rows,
+            "categories": categories,
             "count": total,
             "limit": limit,
             "offset": offset,

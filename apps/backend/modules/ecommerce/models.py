@@ -11,6 +11,7 @@ class Listing(models.Model):
     warehouse_id = models.UUIDField()
     product_code = models.CharField(max_length=40)
     title = models.CharField(max_length=160)
+    category = models.CharField(max_length=80, blank=True, default="")
     currency = models.CharField(max_length=3, default="TWD")
     price = models.DecimalField(max_digits=12, decimal_places=2)
     is_active = models.BooleanField(default=True)

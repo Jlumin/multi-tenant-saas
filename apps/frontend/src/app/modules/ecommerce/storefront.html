@@ -12,11 +12,16 @@
     <p class="eyebrow">OFFICIAL ONLINE STORE</p>
     <h1>{{ shop.storefront_heading }}</h1>
     <p>{{ shop.storefront_description }}</p>
-    <form class="search" (ngSubmit)="search()">
-      <label class="visually-hidden" for="product-search">搜尋商品</label>
-      <input id="product-search" name="query" [(ngModel)]="query" placeholder="搜尋商品名稱或商品編號" maxlength="80">
-      <button type="submit" [disabled]="loading()">搜尋</button>
-    </form>
+    <div class="catalog-filters">
+      <form class="search" (ngSubmit)="search()">
+        <label class="visually-hidden" for="product-search">搜尋商品</label>
+        <input id="product-search" name="query" [(ngModel)]="query" placeholder="搜尋商品名稱或商品編號" maxlength="80">
+        <button type="submit" [disabled]="loading()">搜尋</button>
+      </form>
+      @if (categories().length) {
+        <label class="category-filter">商品分類<select [ngModel]="category" (ngModelChange)="filterCategory($event)"><option value="">所有分類</option>@for (item of categories(); track item) { <option [value]="item">{{ item }}</option> }</select></label>
+      }
+    </div>
   </section>
 
   <section class="catalog" aria-labelledby="catalog-title">
@@ -51,7 +56,7 @@
       <article class="product-detail">
         <button class="dialog-close" type="button" aria-label="關閉商品詳情" (click)="productDialog.close()">×</button>
         @if (product.product_image_url) { <img class="detail-image" [src]="product.product_image_url" [alt]="product.title"> }
-        <p class="product-code">{{ product.product_code }}</p><h2 id="product-detail-title">{{ product.title }}</h2>
+        <p class="product-code">{{ product.product_code }}</p>@if (product.category) { <span class="product-category">{{ product.category }}</span> }<h2 id="product-detail-title">{{ product.title }}</h2>
         <strong class="detail-price">{{ formatPrice(product.price, product.currency) }}</strong>
         <p class="stock-copy" [class.out]="!product.is_available">{{ product.is_available ? '現貨供應' : '暫時缺貨' }}</p>
         <button class="detail-add" type="button" (click)="add(product)" [disabled]="!product.is_available">{{ product.is_available ? '加入購物清單' : '暫無庫存' }}</button>
