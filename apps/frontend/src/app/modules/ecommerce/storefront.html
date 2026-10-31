@@ -1,0 +1,88 @@
+@if (storefront(); as shop) {
+<main class="storefront" [style.--store-primary]="shop.primary_color" [style.--store-accent]="shop.accent_color">
+  <header class="store-header">
+    <a class="brand" href="/" aria-label="回到 SME Cloud">
+      @if (shop.logo_url) { <img class="logo" [src]="shop.logo_url" [alt]="shop.brand_name + ' Logo'"> }
+      <span>{{ shop.brand_name }}</span>
+    </a>
+    <a class="cart-link" href="#cart">購物清單 <span>{{ cartCount() }}</span></a>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">OFFICIAL ONLINE STORE</p>
+    <h1>{{ shop.storefront_heading }}</h1>
+    <p>{{ shop.storefront_description }}</p>
+    <div class="catalog-filters">
+      <form class="search" (ngSubmit)="search()">
+        <label class="visually-hidden" for="product-search">搜尋商品</label>
+        <input id="product-search" name="query" [(ngModel)]="query" placeholder="搜尋商品名稱或商品編號" maxlength="80">
+        <button type="submit" [disabled]="loading()">搜尋</button>
+      </form>
+      @if (categories().length) {
+        <label class="category-filter">商品分類<select [ngModel]="category" (ngModelChange)="filterCategory($event)"><option value="">所有分類</option>@for (item of categories(); track item) { <option [value]="item">{{ item }}</option> }</select></label>
+      }
+    </div>
+  </section>
+
+  <section class="catalog" aria-labelledby="catalog-title">
+    <div class="section-heading"><div><p class="eyebrow">CATALOG</p><h2 id="catalog-title">線上商品</h2></div><span>{{ count() }} 項商品</span></div>
+    @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
+    @if (products().length) {
+      <div class="product-grid">
+        @for (product of products(); track trackProduct($index, product)) {
+          <article class="product-card">
+            <div class="product-visual">
+              @if (product.product_image_url) { <img [src]="product.product_image_url" [alt]="product.title" loading="lazy"> }
+              @else { <span class="image-placeholder" aria-hidden="true">{{ product.product_code }}</span> }
+              <span class="stock" [class.out]="!product.is_available">{{ product.is_available ? '現貨供應' : '暫時缺貨' }}</span>
+            </div>
+            <div class="product-info"><p class="product-code">{{ product.product_code }}</p><h3>{{ product.title }}</h3>
+              <button class="detail-link" type="button" (click)="openProduct(product)">查看商品詳情</button>
+              <div class="product-bottom"><strong>{{ formatPrice(product.price, product.currency) }}</strong>
+                <button type="button" (click)="add(product)" [disabled]="!product.is_available">{{ product.is_available ? '加入購物清單' : '暫無庫存' }}</button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+      @if (offset() < count()) { <div class="load-more"><button type="button" (click)="loadMore()" [disabled]="loading()">{{ loading() ? '載入中…' : '載入更多商品' }}</button></div> }
+    } @else if (!loading() && !error()) {
+      <div class="empty"><h3>{{ query ? '找不到符合的商品' : '商品準備中' }}</h3><p>{{ query ? '試試其他名稱或商品編號。' : '這個店面目前還沒有上架商品。' }}</p></div>
+    } @else if (loading() && !products().length) { <p class="loading" role="status">正在載入商品…</p> }
+  </section>
+
+  <dialog #productDialog class="product-dialog" aria-labelledby="product-detail-title" (close)="closeProduct()">
+    @if (selectedProduct(); as product) {
+      <article class="product-detail">
+        <button class="dialog-close" type="button" aria-label="關閉商品詳情" (click)="productDialog.close()">×</button>
+        @if (product.product_image_url) { <img class="detail-image" [src]="product.product_image_url" [alt]="product.title"> }
+        <p class="product-code">{{ product.product_code }}</p>@if (product.category) { <span class="product-category">{{ product.category }}</span> }<h2 id="product-detail-title">{{ product.title }}</h2>
+        <strong class="detail-price">{{ formatPrice(product.price, product.currency) }}</strong>
+        <p class="stock-copy" [class.out]="!product.is_available">{{ product.is_available ? '現貨供應' : '暫時缺貨' }}</p>
+        <button class="detail-add" type="button" (click)="add(product)" [disabled]="!product.is_available">{{ product.is_available ? '加入購物清單' : '暫無庫存' }}</button>
+      </article>
+    }
+  </dialog>
+
+  <section id="cart" class="cart-section" aria-labelledby="cart-title">
+    <div class="section-heading"><div><p class="eyebrow">YOUR SELECTION</p><h2 id="cart-title">購物清單</h2></div><span>{{ cartCount() }} 件商品</span></div>
+    @if (cart().length) {
+      <div class="cart-lines">
+        @for (line of cart(); track line.product.listing_id) {
+          <div class="cart-line"><div><strong>{{ line.product.title }}</strong><small>{{ line.product.product_code }} · {{ formatPrice(line.product.price, line.product.currency) }}</small></div>
+            <div class="quantity"><button type="button" [attr.aria-label]="'減少 ' + line.product.title" (click)="changeQuantity(line, -1)">−</button><span>{{ line.quantity }}</span><button type="button" [attr.aria-label]="'增加 ' + line.product.title" (click)="changeQuantity(line, 1)">+</button></div>
+            <strong>{{ formatPrice(lineTotal(line), line.product.currency) }}</strong>
+          </div>
+        }
+      </div>
+      <div class="cart-total"><span>小計</span><strong>{{ cartCurrency() ? formatPrice(subtotal().toFixed(2), cartCurrency()!) : '含多種幣別' }}</strong></div>
+      <p class="checkout-note">線上結帳尚未開放；目前可先瀏覽商品並整理購物清單。</p>
+      <button class="checkout" type="button" disabled>結帳功能尚未開放</button>
+    } @else { <div class="empty"><p>購物清單目前是空的，從上方挑選喜歡的商品吧。</p></div> }
+  </section>
+
+  <footer><span>{{ shop.brand_name }}</span><span>© {{ shop.brand_name }} · 商品與庫存資訊以店家確認為準</span></footer>
+</main>
+} @else {
+  <main class="storefront loading-page"><div class="loading-card"><span class="spinner" aria-hidden="true"></span><p>正在開啟店面…</p>@if (error()) { <p class="message error" role="alert">{{ error() }}</p> }</div></main>
+}

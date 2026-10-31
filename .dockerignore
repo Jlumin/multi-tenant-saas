@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+.env
+work
+
+.phase0-venv
+.docker-local

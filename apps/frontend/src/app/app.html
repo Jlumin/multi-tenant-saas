@@ -1,0 +1,117 @@
+@if (qrToken(); as token) {
+  <app-qr-ordering [token]="token" />
+} @else if (storefrontSlug(); as slug) {
+  <app-ecommerce-storefront [tenantSlug]="slug" />
+} @else {
+<main [style.--brand-primary]="branding()?.primary_color" [style.--brand-accent]="branding()?.accent_color">
+  <header><div><p class="eyebrow">SME CLOUD · PHASE 10</p><h1>平台管理</h1><p>租戶、門店、團隊權限與五大業務模組</p></div>
+    @if (identity() && branding(); as brand) { <div class="brand-strip">@if (brand.logo_url) { <img class="brand-logo" [src]="brand.logo_url" [alt]="brand.brand_name + ' Logo'"> }<strong>{{ brand.brand_name }}</strong></div> }
+    @if (identity(); as me) { <div class="account"><span>{{ me.username }}</span><button type="button" (click)="logout()" [disabled]="busy()">登出</button></div> }
+  </header>
+  @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
+  @if (notice()) { <p class="message" role="status">{{ notice() }}</p> }
+  @if (busy()) { <p role="status">處理中…</p> }
+  @if (identity() && selected()) {
+    <nav aria-label="平台模組">
+      <button type="button" [class.selected]="moduleTab() === 'platform'" (click)="selectModule('platform')">平台管理</button>
+      <button type="button" [class.selected]="moduleTab() === 'wms'" (click)="selectModule('wms')">WMS 倉儲</button>
+      @if (selected()?.role !== 'viewer') { <button type="button" [class.selected]="moduleTab() === 'crm'" (click)="selectModule('crm')">CRM 會員</button> }
+      <button type="button" [class.selected]="moduleTab() === 'ecommerce'" (click)="selectModule('ecommerce')">E-Commerce</button>
+      <button type="button" [class.selected]="moduleTab() === 'hr'" (click)="selectModule('hr')">HR 人資</button>
+      <button type="button" [class.selected]="moduleTab() === 'restaurant'" (click)="selectModule('restaurant')">Restaurant 餐飲</button>
+    </nav>
+  }
+  @if (moduleTab() === 'wms' && selected(); as wmsTenant) {
+    <app-wms-dashboard [tenantId]="wmsTenant.tenant_id" [role]="wmsTenant.role" />
+  } @else if (moduleTab() === 'crm' && selected(); as crmTenant) {
+    <app-crm-dashboard [tenantId]="crmTenant.tenant_id" [role]="crmTenant.role" />
+  } @else if (moduleTab() === 'ecommerce' && selected(); as ecommerceTenant) {
+    <app-ecommerce-dashboard [tenantId]="ecommerceTenant.tenant_id" [role]="ecommerceTenant.role" />
+  } @else if (moduleTab() === 'hr' && selected(); as hrTenant) {
+    <app-hr-dashboard [tenantId]="hrTenant.tenant_id" [role]="hrTenant.role" />
+  } @else if (moduleTab() === 'restaurant' && selected(); as restaurantTenant) {
+    <app-restaurant-dashboard [tenantId]="restaurantTenant.tenant_id" [role]="restaurantTenant.role" />
+  } @else if (!identity()) {
+    <section class="login"><h2>登入工作空間</h2><p>請使用租戶管理員提供的帳號。</p>
+      <form (ngSubmit)="login()"><fieldset [disabled]="busy()">
+        <label>帳號<input name="username" [(ngModel)]="username" autocomplete="username" maxlength="150" required></label>
+        <label>密碼<input name="password" [(ngModel)]="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">登入</button>
+      </fieldset></form>
+    </section>
+  } @else {
+    <nav aria-label="工作空間">
+      @for (tenant of identity()!.memberships; track tenant.tenant_id) {
+        <button type="button" [class.selected]="selected()?.tenant_id === tenant.tenant_id" (click)="selectTenant(tenant)" [disabled]="busy()">{{ tenant.tenant_name }}</button>
+      }
+      <button type="button" (click)="refresh()" [disabled]="busy()">重新整理</button>
+    </nav>
+    @if (!identity()!.memberships.length) { <section><h2>尚無可用工作空間</h2><p>請聯絡平台維運人員確認租戶與成員資格。</p></section> }
+    @if (selected(); as tenant) {
+      <div class="workspace-title"><h2>{{ tenant.tenant_name }}</h2><span class="badge">{{ roleNames[tenant.role] }}</span></div>
+      <section><h2>門店</h2><p>顯示 {{ stores().length }} / {{ storeCount() }} 筆。非租戶管理員只會看到已授權的啟用門店。</p>
+        @if (tenant.role === 'admin') {
+          <form (ngSubmit)="createStore()"><fieldset class="inline-form" [disabled]="busy()">
+            <label>門店名稱<input name="storeName" [(ngModel)]="storeName" maxlength="120" required></label>
+            <label>門店代碼<input name="storeCode" [(ngModel)]="storeCode" pattern="[a-zA-Z0-9_-]+" maxlength="40" required></label>
+            <button class="primary" type="submit">新增門店</button>
+          </fieldset></form>
+        }
+        <div class="store-grid">@for (store of stores(); track store.id) {
+          <article><h3>{{ store.name }}</h3><p>{{ store.code }} · {{ store.is_active ? '啟用中' : '已停用' }}</p>
+            @if (tenant.role === 'admin') { <button type="button" (click)="toggleStore(store)" [disabled]="busy()">{{ store.is_active ? '停用' : '啟用' }}</button> }
+          </article>
+        } @empty { <p>目前沒有可顯示的門店。</p> }</div>
+      </section>
+      <section><h2>品牌外觀與客戶店面</h2><p>設定只會套用在目前租戶。支援 JPEG、PNG、WebP，單張圖片上限 5 MiB。公開店面啟用後，任何人都能瀏覽上架商品、售價與有貨／缺貨狀態。</p>
+        @if (tenant.role === 'admin') {
+          <form (ngSubmit)="saveBranding()"><fieldset class="inline-form" [disabled]="busy()">
+            <label>品牌名稱<input name="brandName" [(ngModel)]="brandName" maxlength="120" required></label>
+            <label>店面標題<input name="storefrontHeading" [(ngModel)]="storefrontHeading" maxlength="120" placeholder="為你挑選的好物"></label>
+            <label>店面介紹<textarea name="storefrontDescription" [(ngModel)]="storefrontDescription" maxlength="240" rows="2" placeholder="探索商品與最新供貨狀態。"></textarea></label>
+            <label>主色<input name="primaryColor" type="color" [(ngModel)]="primaryColor" required></label>
+            <label>輔色<input name="accentColor" type="color" [(ngModel)]="accentColor" required></label>
+            <label class="check"><input name="storefrontEnabled" type="checkbox" [(ngModel)]="storefrontEnabled">啟用公開客戶店面</label>
+            <button class="primary" type="submit">儲存品牌設定</button>
+          </fieldset></form>
+          @if (branding()?.storefront_enabled && branding()?.storefront_url) { <p>客戶店面：<a [href]="branding()!.storefront_url!" target="_blank" rel="noopener">{{ locationOrigin }}{{ branding()!.storefront_url }}</a></p> }
+          <div class="inline-form"><label>上傳 Logo<input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadLogo($event)" [disabled]="busy()"></label>
+            @if (branding()?.logo_url) { <button type="button" (click)="removeLogo()" [disabled]="busy()">移除 Logo</button> }
+          </div>
+        } @else { <p>品牌名稱：{{ branding()?.brand_name }} · 主色：{{ branding()?.primary_color }} · 輔色：{{ branding()?.accent_color }}</p> }
+      </section>
+      @if (tenant.role === 'admin') {
+        <section><h2>團隊成員</h2><p>顯示 {{ members().length }} / {{ memberCount() }} 筆。租戶管理員可存取所有門店；其他角色需逐店授權。</p>
+          <form (ngSubmit)="createMember()"><fieldset class="inline-form" [disabled]="busy()">
+            <label>新帳號<input name="memberUsername" [(ngModel)]="memberUsername" maxlength="150" autocomplete="off" required></label>
+            <label>初始密碼<input name="memberPassword" type="password" [(ngModel)]="memberPassword" minlength="12" autocomplete="new-password" required></label>
+            <label>角色<select name="memberRole" [(ngModel)]="memberRole"><option value="viewer">檢視者</option><option value="manager">門店管理員</option><option value="admin">租戶管理員</option></select></label>
+            <button class="primary" type="submit">建立帳號</button>
+          </fieldset></form>
+          @for (member of members(); track member.id) {
+            <form class="member" (ngSubmit)="saveMember(member)"><fieldset [disabled]="busy()">
+              <h3>{{ member.username }}</h3><div class="inline-form">
+                <label>角色<select name="role" [(ngModel)]="member.role"><option value="viewer">檢視者</option><option value="manager">門店管理員</option><option value="admin">租戶管理員</option></select></label>
+                <label class="check"><input name="active" type="checkbox" [(ngModel)]="member.is_active">啟用成員資格</label>
+              </div>
+              @if (member.role !== 'admin') {
+                <p>授權門店（停用門店的既有指派會保留，啟用後恢復存取）</p><div class="assignments">@for (store of stores(); track store.id) {
+                  @if (store.is_active) { <label class="check"><input type="checkbox" [checked]="member.store_ids.includes(store.id)" (change)="setStoreAccess(member, store.id, $event)">{{ store.name }}</label> }
+                }</div>
+              }
+              <button type="submit">儲存權限</button>
+            </fieldset></form>
+          }
+        </section>
+        <section><h2>最近審計紀錄</h2><p>顯示最近 {{ events().length }} / {{ auditCount() }} 筆。紀錄僅供查閱。</p>
+          <div class="table-scroll"><table><thead><tr><th>時間</th><th>動作</th><th>操作者 ID</th><th>目標 ID</th></tr></thead><tbody>
+            @for (event of events(); track event.id) { <tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.actor_id ?? '—' }}</td><td>{{ event.target_id }}</td></tr> }
+          </tbody></table></div>
+        </section>
+      }
+      <p class="footnote">HR 與 Restaurant QR／POS 第一版已啟用。</p>
+    }
+  }
+</main>
+}
+

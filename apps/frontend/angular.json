@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {"analytics": false},
+  "projects": {"sme-cloud": {
+    "projectType": "application", "root": "", "sourceRoot": "src",
+    "architect": {
+      "build": {"builder": "@angular/build:application", "options": {
+        "browser": "src/main.ts", "index": "src/index.html", "tsConfig": "tsconfig.app.json", "styles": ["src/styles.css"],
+        "outputPath": "dist/sme-cloud"
+      }, "configurations": {"production": {"outputHashing": "all", "budgets": [{"type": "initial", "maximumWarning": "500kB", "maximumError": "1MB"}]}}, "defaultConfiguration": "production"},
+      "serve": {"builder": "@angular/build:dev-server", "options": {"buildTarget": "sme-cloud:build"}}
+    }
+  }}
+}

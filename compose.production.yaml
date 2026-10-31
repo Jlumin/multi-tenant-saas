@@ -1,0 +1,37 @@
+services:
+  db:
+    restart: unless-stopped
+    ports: !override []
+  backend:
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "/dev/null", "--error-logfile", "-"]
+    restart: unless-stopped
+    ports: !override []
+    expose: ["8000"]
+    volumes:
+      - media_data:/app/media
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set exact production hostnames},localhost
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Set production HTTPS origin}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Set production HTTPS CSRF origin}
+      DJANGO_SECURE_SSL_REDIRECT: "1"
+      DJANGO_SECURE_HSTS_SECONDS: ${DJANGO_SECURE_HSTS_SECONDS:?Set HSTS seconds after TLS validation}
+      DJANGO_TRUST_PROXY_SSL: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/api/v1/health/ready/', headers={'X-Forwarded-Proto': 'https'}))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.production
+    ports: !override ["127.0.0.1:8080:8080"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
